@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,7 +17,7 @@ import (
 	"syscall"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
 
 	pb "microchat.ai/proto"
@@ -73,8 +76,33 @@ func generateSessionID() uint16 {
 }
 
 func (app *application) connect() error {
+	serverName := os.Getenv("SERVER_NAME")
+	if serverName == "" {
+		serverName = "localhost"
+	}
+
+	// Load CA certificate
+	caPath := os.Getenv("CA_CERT_FILE")
+	if caPath == "" {
+		caPath = "../../certs/ca.crt" // relative to cmd/client when using Makefile
+	}
+	caCert, err := ioutil.ReadFile(caPath)
+	if err != nil {
+		return fmt.Errorf("failed to read CA certificate: %v", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return fmt.Errorf("failed to append CA certificate")
+	}
+
+	creds := credentials.NewTLS(&tls.Config{
+		ServerName: serverName,
+		RootCAs:    caCertPool,
+	})
+
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
 		grpc.WithUnaryInterceptor(app.byteTracker),
 	}

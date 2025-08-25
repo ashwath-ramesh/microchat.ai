@@ -4,7 +4,7 @@ proto:
 	       proto/chat.proto
 
 server:
-	cd cmd/server && go run .
+	cd cmd/server && TLS_CERT_FILE=../../certs/server.crt TLS_KEY_FILE=../../certs/server.key go run .
 
 client:
 	cd cmd/client && go run .

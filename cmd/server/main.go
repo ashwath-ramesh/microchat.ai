@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/reflection"
 
@@ -38,14 +39,30 @@ func main() {
 		logger: logger,
 	}
 
-	// create gRPC server with compression
-	s := grpc.NewServer()
+	// create gRPC server with compression and TLS
+	certFile := os.Getenv("TLS_CERT_FILE")
+	if certFile == "" {
+		certFile = "certs/server.crt"
+	}
+	keyFile := os.Getenv("TLS_KEY_FILE")
+	if keyFile == "" {
+		keyFile = "certs/server.key"
+	}
+
+	creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
+	if err != nil {
+		logger.Error("failed to load TLS credentials", "error", err)
+		os.Exit(1)
+	}
+	s := grpc.NewServer(grpc.Creds(creds))
 
 	// register service
 	pb.RegisterChatServiceServer(s, app)
 
-	// Enable reflection
-	reflection.Register(s)
+	// Enable reflection in development only
+	if cfg.env == "development" {
+		reflection.Register(s)
+	}
 
 	// Listen on TCP
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))

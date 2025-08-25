@@ -54,3 +54,17 @@ Currently, the limits are around:
 * **100 requests** per day (per user/IP)
 
 These limits should be more than enough for a long, productive conversation.
+
+## Deployment
+
+**Local Development:**
+• `git clone <repo>` and `cd microchat.ai`
+• `./certs/generate-certs.sh` to create certificates  
+• `cp .env.example .env` for configuration
+• `make server` and `make client` to run
+
+**Production with Caddy:**
+• Install Go and Caddy on VPS
+• Configure Caddyfile: `yourdomain.com { reverse_proxy localhost:4000 }`
+• Create production `.env` (no TLS vars needed - Caddy handles TLS)
+• `make server` to run (app serves on :4000, Caddy proxies with TLS)
