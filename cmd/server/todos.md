@@ -3,7 +3,7 @@
 Request flow:
 `client -> gzip -> server -> decompress -> llm api -> compress -> client`
 
-- [] Setup basic HTTP server
+- [] Setup basic gRPC server
 - [] Add compression (gzip)
 - [] Session management
 - [] Rate limiting

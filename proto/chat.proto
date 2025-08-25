@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package chat;
+option go_package = "./proto";
+
+service ChatService {
+    rpc Chat(ChatRequest) returns (ChatResponse);
+    rpc HealthCheck(HealthRequest) returns (HealthResponse);
+  }
+
+message ChatRequest {
+  uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
+  Model model         = 2;  // enum, defaults to 0
+  string message      = 3;  // your actual chat message
+}
+
+message ChatResponse {
+  uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
+  string reply        = 2;
+  ErrorCode error     = 3;  // defaults to 0 (NO_ERROR)
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  HealthStatus status     = 1;
+  Environment environment = 2;
+  string version          = 3;
+}
+
+enum Model {
+  GPT_4           = 0;      // default = 0 bytes in payload
+  GPT_3_5         = 1;
+  CLAUDE_4        = 2;
+  GEMINI_2_5_PRO  = 3;
+}
+
+enum HealthStatus {
+  AVAILABLE     = 0;
+  DEGRADED      = 1;
+  UNAVAILABLE   = 2;
+}
+
+enum Environment {
+  DEVELOPMENT   = 0;
+  STAGING       = 1;
+  PRODUCTION    = 2;
+}
+
+enum ErrorCode {
+  NO_ERROR        = 0;     // success case = 0 bytes
+  INVALID_REQUEST = 1;
+  INTERNAL_ERROR  = 2;
+  RATE_LIMITED    = 3;
+}

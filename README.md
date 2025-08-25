@@ -34,11 +34,11 @@ I built this with privacy in mind.
     All server-side history is discarded when the session ends.
 * **No Logs:** The proxy server keeps no logs of your conversations.
 
-**⚠️ A Note on Upstream Providers:**
+**A Note on LLM Providers:**
 
 While `microchat.ai` is designed to be private, your questions are ultimately sent
-to an LLM provider (like OpenAI, Gemini, etc.). These providers have their own
-data policies and may log your conversations.
+to an LLM provider (like Anthropic, OpenAI, Gemini, etc.). These providers have
+their own data policies and may log your conversations.
 
 Never send passwords, API keys, or any other sensitive information.
 
@@ -54,4 +54,3 @@ Currently, the limits are around:
 * **100 requests** per day (per user/IP)
 
 These limits should be more than enough for a long, productive conversation.
-

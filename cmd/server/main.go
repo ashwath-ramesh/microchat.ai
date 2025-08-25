@@ -1,60 +1,65 @@
 package main
 
 import (
-	"encoding/json"
+	"flag"
 	"fmt"
-	"log"
-	"net/http"
+	"log/slog"
+	"net"
+	"os"
+
+	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/reflection"
+
+	pb "microchat.ai/proto"
 )
 
-type chatRequest struct {
-	SessionID string `json:"sid,omitempty"`
-	Model     string `json:"m"`
-	Message   string `json:"msg"`
+const version = "1.0.0"
+
+type config struct {
+	port int
+	env  string
 }
 
-type chatReply struct {
-	SessionID string `json:"sid,omitempty"`
-	Reply     string `json:"r"`
-	Error     string `json:"e"`
-}
-
-func chatHandler(w http.ResponseWriter, r *http.Request) {
-	// set response header to json
-	w.Header().Set("Content-Type", "application/json")
-
-	// only allow POST Request
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// parse json requests
-	var req chatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadGateway)
-		return
-	}
-	fmt.Printf("Received: %s, %s, %s", req.SessionID, req.Model, req.Message)
-
-	// create the reply
-	resp := chatReply{
-		SessionID: req.SessionID,
-		Reply:     req.Message, // TODO: replace this. For now echo back request
-		Error:     "",
-	}
-
-	// send json response
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+type application struct {
+	config config
+	logger *slog.Logger
+	pb.UnimplementedChatServiceServer
 }
 
 func main() {
-	// register the handler
-	http.HandleFunc("/chat", chatHandler)
+	var cfg config
 
-	fmt.Println("server starting on: 8080 ...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	flag.IntVar(&cfg.port, "port", 4000, "gRPC server port")
+	flag.StringVar(&cfg.env, "env", "development", "environment (development|staging|production)")
+	flag.Parse()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	app := &application{
+		config: cfg,
+		logger: logger,
+	}
+
+	// create gRPC server with compression
+	s := grpc.NewServer()
+
+	// register service
+	pb.RegisterChatServiceServer(s, app)
+
+	// Enable reflection
+	reflection.Register(s)
+
+	// Listen on TCP
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
+	if err != nil {
+		logger.Error("failed to listen", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
+
+	if err := s.Serve(lis); err != nil {
+		logger.Error("failed to serve", "error", err)
+		os.Exit(1)
+	}
 }
