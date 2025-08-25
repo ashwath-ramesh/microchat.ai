@@ -73,156 +73,6 @@ func (Model) EnumDescriptor() ([]byte, []int) {
 	return file_proto_chat_proto_rawDescGZIP(), []int{0}
 }
 
-type HealthStatus int32
-
-const (
-	HealthStatus_AVAILABLE   HealthStatus = 0
-	HealthStatus_DEGRADED    HealthStatus = 1
-	HealthStatus_UNAVAILABLE HealthStatus = 2
-)
-
-// Enum value maps for HealthStatus.
-var (
-	HealthStatus_name = map[int32]string{
-		0: "AVAILABLE",
-		1: "DEGRADED",
-		2: "UNAVAILABLE",
-	}
-	HealthStatus_value = map[string]int32{
-		"AVAILABLE":   0,
-		"DEGRADED":    1,
-		"UNAVAILABLE": 2,
-	}
-)
-
-func (x HealthStatus) Enum() *HealthStatus {
-	p := new(HealthStatus)
-	*p = x
-	return p
-}
-
-func (x HealthStatus) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (HealthStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_chat_proto_enumTypes[1].Descriptor()
-}
-
-func (HealthStatus) Type() protoreflect.EnumType {
-	return &file_proto_chat_proto_enumTypes[1]
-}
-
-func (x HealthStatus) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use HealthStatus.Descriptor instead.
-func (HealthStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_chat_proto_rawDescGZIP(), []int{1}
-}
-
-type Environment int32
-
-const (
-	Environment_DEVELOPMENT Environment = 0
-	Environment_STAGING     Environment = 1
-	Environment_PRODUCTION  Environment = 2
-)
-
-// Enum value maps for Environment.
-var (
-	Environment_name = map[int32]string{
-		0: "DEVELOPMENT",
-		1: "STAGING",
-		2: "PRODUCTION",
-	}
-	Environment_value = map[string]int32{
-		"DEVELOPMENT": 0,
-		"STAGING":     1,
-		"PRODUCTION":  2,
-	}
-)
-
-func (x Environment) Enum() *Environment {
-	p := new(Environment)
-	*p = x
-	return p
-}
-
-func (x Environment) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Environment) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_chat_proto_enumTypes[2].Descriptor()
-}
-
-func (Environment) Type() protoreflect.EnumType {
-	return &file_proto_chat_proto_enumTypes[2]
-}
-
-func (x Environment) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Environment.Descriptor instead.
-func (Environment) EnumDescriptor() ([]byte, []int) {
-	return file_proto_chat_proto_rawDescGZIP(), []int{2}
-}
-
-type ErrorCode int32
-
-const (
-	ErrorCode_NO_ERROR        ErrorCode = 0 // success case = 0 bytes
-	ErrorCode_INVALID_REQUEST ErrorCode = 1
-	ErrorCode_INTERNAL_ERROR  ErrorCode = 2
-	ErrorCode_RATE_LIMITED    ErrorCode = 3
-)
-
-// Enum value maps for ErrorCode.
-var (
-	ErrorCode_name = map[int32]string{
-		0: "NO_ERROR",
-		1: "INVALID_REQUEST",
-		2: "INTERNAL_ERROR",
-		3: "RATE_LIMITED",
-	}
-	ErrorCode_value = map[string]int32{
-		"NO_ERROR":        0,
-		"INVALID_REQUEST": 1,
-		"INTERNAL_ERROR":  2,
-		"RATE_LIMITED":    3,
-	}
-)
-
-func (x ErrorCode) Enum() *ErrorCode {
-	p := new(ErrorCode)
-	*p = x
-	return p
-}
-
-func (x ErrorCode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ErrorCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_chat_proto_enumTypes[3].Descriptor()
-}
-
-func (ErrorCode) Type() protoreflect.EnumType {
-	return &file_proto_chat_proto_enumTypes[3]
-}
-
-func (x ErrorCode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ErrorCode.Descriptor instead.
-func (ErrorCode) EnumDescriptor() ([]byte, []int) {
-	return file_proto_chat_proto_rawDescGZIP(), []int{3}
-}
-
 type ChatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     uint32                 `protobuf:"varint,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Ultra-low bandwidth: small values encode as ~2 bytes
@@ -287,7 +137,6 @@ type ChatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     uint32                 `protobuf:"varint,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Ultra-low bandwidth: small values encode as ~2 bytes
 	Reply         string                 `protobuf:"bytes,2,opt,name=reply,proto3" json:"reply,omitempty"`
-	Error         ErrorCode              `protobuf:"varint,3,opt,name=error,proto3,enum=chat.ErrorCode" json:"error,omitempty"` // defaults to 0 (NO_ERROR)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -336,13 +185,6 @@ func (x *ChatResponse) GetReply() string {
 	return ""
 }
 
-func (x *ChatResponse) GetError() ErrorCode {
-	if x != nil {
-		return x.Error
-	}
-	return ErrorCode_NO_ERROR
-}
-
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -381,9 +223,7 @@ func (*HealthRequest) Descriptor() ([]byte, []int) {
 
 type HealthResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        HealthStatus           `protobuf:"varint,1,opt,name=status,proto3,enum=chat.HealthStatus" json:"status,omitempty"`
-	Environment   Environment            `protobuf:"varint,2,opt,name=environment,proto3,enum=chat.Environment" json:"environment,omitempty"`
-	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"` // Just true/false, defaults to false (0 bytes when true)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -418,25 +258,11 @@ func (*HealthResponse) Descriptor() ([]byte, []int) {
 	return file_proto_chat_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *HealthResponse) GetStatus() HealthStatus {
+func (x *HealthResponse) GetOk() bool {
 	if x != nil {
-		return x.Status
+		return x.Ok
 	}
-	return HealthStatus_AVAILABLE
-}
-
-func (x *HealthResponse) GetEnvironment() Environment {
-	if x != nil {
-		return x.Environment
-	}
-	return Environment_DEVELOPMENT
-}
-
-func (x *HealthResponse) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
+	return false
 }
 
 var File_proto_chat_proto protoreflect.FileDescriptor
@@ -448,39 +274,22 @@ const file_proto_chat_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x01 \x01(\rR\tsessionId\x12!\n" +
 	"\x05model\x18\x02 \x01(\x0e2\v.chat.ModelR\x05model\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"j\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"C\n" +
 	"\fChatResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\rR\tsessionId\x12\x14\n" +
-	"\x05reply\x18\x02 \x01(\tR\x05reply\x12%\n" +
-	"\x05error\x18\x03 \x01(\x0e2\x0f.chat.ErrorCodeR\x05error\"\x0f\n" +
-	"\rHealthRequest\"\x8b\x01\n" +
-	"\x0eHealthResponse\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.chat.HealthStatusR\x06status\x123\n" +
-	"\venvironment\x18\x02 \x01(\x0e2\x11.chat.EnvironmentR\venvironment\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion*A\n" +
+	"\x05reply\x18\x02 \x01(\tR\x05reply\"\x0f\n" +
+	"\rHealthRequest\" \n" +
+	"\x0eHealthResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok*A\n" +
 	"\x05Model\x12\t\n" +
 	"\x05GPT_4\x10\x00\x12\v\n" +
 	"\aGPT_3_5\x10\x01\x12\f\n" +
 	"\bCLAUDE_4\x10\x02\x12\x12\n" +
-	"\x0eGEMINI_2_5_PRO\x10\x03*<\n" +
-	"\fHealthStatus\x12\r\n" +
-	"\tAVAILABLE\x10\x00\x12\f\n" +
-	"\bDEGRADED\x10\x01\x12\x0f\n" +
-	"\vUNAVAILABLE\x10\x02*;\n" +
-	"\vEnvironment\x12\x0f\n" +
-	"\vDEVELOPMENT\x10\x00\x12\v\n" +
-	"\aSTAGING\x10\x01\x12\x0e\n" +
-	"\n" +
-	"PRODUCTION\x10\x02*T\n" +
-	"\tErrorCode\x12\f\n" +
-	"\bNO_ERROR\x10\x00\x12\x13\n" +
-	"\x0fINVALID_REQUEST\x10\x01\x12\x12\n" +
-	"\x0eINTERNAL_ERROR\x10\x02\x12\x10\n" +
-	"\fRATE_LIMITED\x10\x032v\n" +
+	"\x0eGEMINI_2_5_PRO\x10\x032q\n" +
 	"\vChatService\x12-\n" +
-	"\x04Chat\x12\x11.chat.ChatRequest\x1a\x12.chat.ChatResponse\x128\n" +
-	"\vHealthCheck\x12\x13.chat.HealthRequest\x1a\x14.chat.HealthResponseB\tZ\a./protob\x06proto3"
+	"\x04Chat\x12\x11.chat.ChatRequest\x1a\x12.chat.ChatResponse\x123\n" +
+	"\x06Health\x12\x13.chat.HealthRequest\x1a\x14.chat.HealthResponseB\tZ\a./protob\x06proto3"
 
 var (
 	file_proto_chat_proto_rawDescOnce sync.Once
@@ -494,32 +303,26 @@ func file_proto_chat_proto_rawDescGZIP() []byte {
 	return file_proto_chat_proto_rawDescData
 }
 
-var file_proto_chat_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_proto_chat_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_proto_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_chat_proto_goTypes = []any{
 	(Model)(0),             // 0: chat.Model
-	(HealthStatus)(0),      // 1: chat.HealthStatus
-	(Environment)(0),       // 2: chat.Environment
-	(ErrorCode)(0),         // 3: chat.ErrorCode
-	(*ChatRequest)(nil),    // 4: chat.ChatRequest
-	(*ChatResponse)(nil),   // 5: chat.ChatResponse
-	(*HealthRequest)(nil),  // 6: chat.HealthRequest
-	(*HealthResponse)(nil), // 7: chat.HealthResponse
+	(*ChatRequest)(nil),    // 1: chat.ChatRequest
+	(*ChatResponse)(nil),   // 2: chat.ChatResponse
+	(*HealthRequest)(nil),  // 3: chat.HealthRequest
+	(*HealthResponse)(nil), // 4: chat.HealthResponse
 }
 var file_proto_chat_proto_depIdxs = []int32{
 	0, // 0: chat.ChatRequest.model:type_name -> chat.Model
-	3, // 1: chat.ChatResponse.error:type_name -> chat.ErrorCode
-	1, // 2: chat.HealthResponse.status:type_name -> chat.HealthStatus
-	2, // 3: chat.HealthResponse.environment:type_name -> chat.Environment
-	4, // 4: chat.ChatService.Chat:input_type -> chat.ChatRequest
-	6, // 5: chat.ChatService.HealthCheck:input_type -> chat.HealthRequest
-	5, // 6: chat.ChatService.Chat:output_type -> chat.ChatResponse
-	7, // 7: chat.ChatService.HealthCheck:output_type -> chat.HealthResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	1, // 1: chat.ChatService.Chat:input_type -> chat.ChatRequest
+	3, // 2: chat.ChatService.Health:input_type -> chat.HealthRequest
+	2, // 3: chat.ChatService.Chat:output_type -> chat.ChatResponse
+	4, // 4: chat.ChatService.Health:output_type -> chat.HealthResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_proto_chat_proto_init() }
@@ -532,7 +335,7 @@ func file_proto_chat_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_chat_proto_rawDesc), len(file_proto_chat_proto_rawDesc)),
-			NumEnums:      4,
+			NumEnums:      1,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,

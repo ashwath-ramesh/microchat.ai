@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -10,7 +12,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -19,7 +20,7 @@ import (
 	pb "microchat.ai/proto"
 )
 
-const version = "1.0.0"
+const quitCommand = "/quit"
 
 type config struct {
 	serverAddr string
@@ -28,10 +29,11 @@ type config struct {
 }
 
 type application struct {
-	config config
-	logger *slog.Logger
-	conn   *grpc.ClientConn
-	grpc   pb.ChatServiceClient
+	config  config
+	logger  *slog.Logger
+	conn    *grpc.ClientConn
+	grpc    pb.ChatServiceClient
+	metrics metrics
 }
 
 func main() {
@@ -62,10 +64,19 @@ func main() {
 	app.startChat()
 }
 
+// Returns uint16 (~2 bytes in protobuf). Uses crypto/rand for secure generation.
+// Collision probability ~0.15% with 200 concurrent sessions, ~0.76% with 1000 sessions.
+func generateSessionID() uint16 {
+	var b [2]byte
+	rand.Read(b[:])
+	return binary.LittleEndian.Uint16(b[:])
+}
+
 func (app *application) connect() error {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
+		grpc.WithUnaryInterceptor(app.byteTracker),
 	}
 
 	conn, err := grpc.NewClient(app.config.serverAddr, opts...)
@@ -92,7 +103,8 @@ func (app *application) startChat() {
 
 	app.logger.Info("starting interactive chat - type 'quit' to exit")
 	fmt.Println("microchat.ai client - type your message and press Enter")
-	fmt.Println("Commands: 'quit' to exit, Ctrl+C to quit")
+	fmt.Printf("Commands: '%s' to exit, Ctrl+C to quit\n", quitCommand)
+	fmt.Println("[Starting session - 0 B sent, 0 B received]")
 	fmt.Print("> ")
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -104,7 +116,7 @@ func (app *application) startChat() {
 			continue
 		}
 
-		if input == "quit" || input == "exit" {
+		if input == quitCommand {
 			app.logger.Info("goodbye!")
 			break
 		}
@@ -134,17 +146,9 @@ func (app *application) sendMessage(message string) error {
 		return err
 	}
 
-	if resp.Error != pb.ErrorCode_NO_ERROR {
-		fmt.Printf("Error: %v\n", resp.Error)
-		return nil
-	}
-
+	// Display session totals only
+	totalOut, totalIn := app.metrics.getTotals()
+	fmt.Printf("[Total: %s sent, %s received]\n", formatBytes(totalOut), formatBytes(totalIn))
 	fmt.Printf("Assistant: %s\n", resp.Reply)
 	return nil
-}
-
-// Generate session ID
-// Returns uint16 (~2 bytes in protobuf). Collision probability <1% with <200 concurrent sessions
-func generateSessionID() uint16 {
-	return uint16(time.Now().UnixNano() & 0xFFFF)
 }

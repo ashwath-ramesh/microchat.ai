@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ChatService_Chat_FullMethodName        = "/chat.ChatService/Chat"
-	ChatService_HealthCheck_FullMethodName = "/chat.ChatService/HealthCheck"
+	ChatService_Chat_FullMethodName   = "/chat.ChatService/Chat"
+	ChatService_Health_FullMethodName = "/chat.ChatService/Health"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -28,7 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
-	HealthCheck(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 }
 
 type chatServiceClient struct {
@@ -49,10 +49,10 @@ func (c *chatServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...g
 	return out, nil
 }
 
-func (c *chatServiceClient) HealthCheck(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
+func (c *chatServiceClient) Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HealthResponse)
-	err := c.cc.Invoke(ctx, ChatService_HealthCheck_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ChatService_Health_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *chatServiceClient) HealthCheck(ctx context.Context, in *HealthRequest, 
 // for forward compatibility.
 type ChatServiceServer interface {
 	Chat(context.Context, *ChatRequest) (*ChatResponse, error)
-	HealthCheck(context.Context, *HealthRequest) (*HealthResponse, error)
+	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -78,8 +78,8 @@ type UnimplementedChatServiceServer struct{}
 func (UnimplementedChatServiceServer) Chat(context.Context, *ChatRequest) (*ChatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Chat not implemented")
 }
-func (UnimplementedChatServiceServer) HealthCheck(context.Context, *HealthRequest) (*HealthResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
+func (UnimplementedChatServiceServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Health not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -120,20 +120,20 @@ func _ChatService_Chat_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ChatService_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ChatService_Health_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ChatServiceServer).HealthCheck(ctx, in)
+		return srv.(ChatServiceServer).Health(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ChatService_HealthCheck_FullMethodName,
+		FullMethod: ChatService_Health_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).HealthCheck(ctx, req.(*HealthRequest))
+		return srv.(ChatServiceServer).Health(ctx, req.(*HealthRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -150,8 +150,8 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ChatService_Chat_Handler,
 		},
 		{
-			MethodName: "HealthCheck",
-			Handler:    _ChatService_HealthCheck_Handler,
+			MethodName: "Health",
+			Handler:    _ChatService_Health_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
