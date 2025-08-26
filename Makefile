@@ -9,6 +9,12 @@ server:
 client:
 	cd cmd/client && go run .
 
+client-metrics:
+	cd cmd/client && go run . --metrics 
+
+client-metrics-detail:
+	cd cmd/client && go run . --metrics-detail
+
 test-client:
 	@echo "Is your server live?"
 	cd cmd/client && go test -v

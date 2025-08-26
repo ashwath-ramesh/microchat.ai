@@ -26,9 +26,11 @@ import (
 const quitCommand = "/quit"
 
 type config struct {
-	serverAddr string
-	model      pb.Model
-	sessionID  uint16 // Ultra-low bandwidth: 16-bit value, encodes as ~2 bytes in protobuf
+	serverAddr    string
+	model         pb.Model
+	sessionID     uint16 // Ultra-low bandwidth: 16-bit value, encodes as ~2 bytes in protobuf
+	metrics       bool   // Show compact session metrics
+	metricsDetail bool   // Show detailed metrics
 }
 
 type application struct {
@@ -43,6 +45,8 @@ func main() {
 	var cfg config
 
 	flag.StringVar(&cfg.serverAddr, "addr", "localhost:4000", "gRPC server address")
+	flag.BoolVar(&cfg.metrics, "metrics", false, "show compact session metrics")
+	flag.BoolVar(&cfg.metricsDetail, "metrics-detail", false, "show detailed message and session metrics")
 	flag.Parse()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -105,6 +109,7 @@ func (app *application) connect() error {
 		grpc.WithTransportCredentials(creds),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
 		grpc.WithUnaryInterceptor(app.byteTracker),
+		grpc.WithStatsHandler(&statsHandler{metrics: &app.metrics}),
 	}
 
 	conn, err := grpc.NewClient(app.config.serverAddr, opts...)
@@ -174,9 +179,37 @@ func (app *application) sendMessage(message string) error {
 		return err
 	}
 
-	// Display session totals only
-	totalOut, totalIn := app.metrics.getTotals()
-	fmt.Printf("[Total: %s sent, %s received]\n", formatBytes(totalOut), formatBytes(totalIn))
 	fmt.Printf("Assistant: %s\n", resp.Reply)
+	app.displayMetrics()
 	return nil
+}
+
+func (app *application) displayMetrics() {
+	if !app.config.metrics && !app.config.metricsDetail {
+		return // No metrics to display
+	}
+
+	if app.config.metricsDetail {
+		// NOTE: Wire bytes can be less than payload bytes due to gzip compression.
+		// Payload = uncompressed protobuf size, Wire = compressed data + gRPC protocol overhead.
+		// Show detailed metrics with arrow format
+		msgPayloadOut, msgPayloadIn, msgWireOut, msgWireIn := app.metrics.getMessageTotalsAndReset()
+		totalPayloadOut, totalPayloadIn, totalWireOut, totalWireIn := app.metrics.getAllTotals()
+
+		fmt.Println()
+		fmt.Printf("Message: [Payload: ↑%s ↓%s] [Wire (gzip): ↑%s ↓%s]\n",
+			formatBytes(msgPayloadOut), formatBytes(msgPayloadIn),
+			formatBytes(msgWireOut), formatBytes(msgWireIn))
+		fmt.Printf("Session: [Payload: ↑%s ↓%s] [Wire (gzip): ↑%s ↓%s]\n",
+			formatBytes(totalPayloadOut), formatBytes(totalPayloadIn),
+			formatBytes(totalWireOut), formatBytes(totalWireIn))
+		fmt.Println()
+	} else if app.config.metrics {
+		// Show compact session metrics (wire level only)
+		_, _, totalWireOut, totalWireIn := app.metrics.getAllTotals()
+		fmt.Printf("[↑%s ↓%s]\n", formatBytes(totalWireOut), formatBytes(totalWireIn))
+
+		// Reset message counters even though we don't display them
+		app.metrics.getMessageTotalsAndReset()
+	}
 }
