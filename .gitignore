@@ -41,3 +41,6 @@ Thumbs.db
 certs/*.crt
 certs/*.key
 certs/*.srl
+
+# Private development notes
+.notes/
