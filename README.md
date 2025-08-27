@@ -40,12 +40,12 @@ This system minimizes data collection while maintaining practical functionality:
 - **IP addresses**: Used for rate limiting
 - **Session IDs**: Random 16-bit identifiers for session request correlation
 - **Bandwidth metrics**: Request/response sizes for system monitoring
+- **Messages**: Proxied to LLMs, stored in memory, deleted when session ends
 
 **What we DON'T store:**
 
-- **Conversation content**: Messages are proxied to LLMs but never stored
 - **User identities**: No authentication, accounts, or tracking currently
-- **Chat history**: Sessions are ephemeral - everything forgotten on disconnect
+- **Persistent chat history**: Sessions are ephemeral - everything forgotten on disconnect
 
 **Technical details:**
 

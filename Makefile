@@ -15,9 +15,9 @@ client-metrics:
 client-metrics-detail:
 	cd cmd/client && go run . --metrics-detail
 
-test-client:
-	@echo "Is your server live?"
-	cd cmd/client && go test -v
+test:
+	@echo "Running all tests..."
+	go test -v ./...
 
 audit:
 	@echo "Starting audit ..."
@@ -30,4 +30,4 @@ audit:
 	go build ./...
 	@echo "Audit complete"
 
-.PHONY: proto server client test-client audit
+.PHONY: proto server client test audit
