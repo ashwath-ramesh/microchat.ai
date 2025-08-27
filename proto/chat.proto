@@ -6,6 +6,7 @@ option go_package = "./proto";
 service ChatService {
     rpc Chat(ChatRequest) returns (ChatResponse);
     rpc Health(HealthRequest) returns (HealthResponse);
+    rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
 }
 
 message ChatRequest {
@@ -23,6 +24,15 @@ message HealthRequest {}
 
 message HealthResponse {
   bool ok = 1;  // Just true/false, defaults to false (0 bytes when true)
+}
+
+message GetHistoryRequest {
+  uint32 session_id = 1;  // Session to get history for
+}
+
+message GetHistoryResponse {
+  uint32 session_id = 1;  // Session ID
+  repeated string messages = 2;  // All messages in session
 }
 
 enum Model {

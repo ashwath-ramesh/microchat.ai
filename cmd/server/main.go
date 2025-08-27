@@ -21,8 +21,9 @@ type config struct {
 }
 
 type application struct {
-	config config
-	logger *slog.Logger
+	config       config
+	logger       *slog.Logger
+	sessionStore *SessionStore
 	pb.UnimplementedChatServiceServer
 }
 
@@ -35,8 +36,9 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	app := &application{
-		config: cfg,
-		logger: logger,
+		config:       cfg,
+		logger:       logger,
+		sessionStore: NewSessionStore(),
 	}
 
 	// create gRPC server with compression and TLS
