@@ -9,15 +9,17 @@ service ChatService {
     rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
 }
 
-message ChatRequest {
+message ChatReguest {
   uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
   Model model         = 2;  // enum, defaults to 0
   string message      = 3;  // your actual chat message
+  uint32 message_index = 4; // Index of last message client has, 0 for full context
 }
 
 message ChatResponse {
   uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
   string reply        = 2;
+  uint32 message_count = 3; // Total messages in session after this response
 }
 
 message HealthRequest {}

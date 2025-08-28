@@ -75,9 +75,10 @@ func (Model) EnumDescriptor() ([]byte, []int) {
 
 type ChatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     uint32                 `protobuf:"varint,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Ultra-low bandwidth: small values encode as ~2 bytes
-	Model         Model                  `protobuf:"varint,2,opt,name=model,proto3,enum=chat.Model" json:"model,omitempty"`          // enum, defaults to 0
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`                       // your actual chat message
+	SessionId     uint32                 `protobuf:"varint,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`          // Ultra-low bandwidth: small values encode as ~2 bytes
+	Model         Model                  `protobuf:"varint,2,opt,name=model,proto3,enum=chat.Model" json:"model,omitempty"`                   // enum, defaults to 0
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`                                // your actual chat message
+	MessageIndex  uint32                 `protobuf:"varint,4,opt,name=message_index,json=messageIndex,proto3" json:"message_index,omitempty"` // Index of last message client has, 0 for full context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -133,10 +134,18 @@ func (x *ChatRequest) GetMessage() string {
 	return ""
 }
 
+func (x *ChatRequest) GetMessageIndex() uint32 {
+	if x != nil {
+		return x.MessageIndex
+	}
+	return 0
+}
+
 type ChatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     uint32                 `protobuf:"varint,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Ultra-low bandwidth: small values encode as ~2 bytes
 	Reply         string                 `protobuf:"bytes,2,opt,name=reply,proto3" json:"reply,omitempty"`
+	MessageCount  uint32                 `protobuf:"varint,3,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"` // Total messages in session after this response
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,6 +192,13 @@ func (x *ChatResponse) GetReply() string {
 		return x.Reply
 	}
 	return ""
+}
+
+func (x *ChatResponse) GetMessageCount() uint32 {
+	if x != nil {
+		return x.MessageCount
+	}
+	return 0
 }
 
 type HealthRequest struct {
@@ -365,16 +381,18 @@ var File_proto_chat_proto protoreflect.FileDescriptor
 
 const file_proto_chat_proto_rawDesc = "" +
 	"\n" +
-	"\x10proto/chat.proto\x12\x04chat\"i\n" +
+	"\x10proto/chat.proto\x12\x04chat\"\x8e\x01\n" +
 	"\vChatRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\rR\tsessionId\x12!\n" +
 	"\x05model\x18\x02 \x01(\x0e2\v.chat.ModelR\x05model\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"C\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12#\n" +
+	"\rmessage_index\x18\x04 \x01(\rR\fmessageIndex\"h\n" +
 	"\fChatResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\rR\tsessionId\x12\x14\n" +
-	"\x05reply\x18\x02 \x01(\tR\x05reply\"\x0f\n" +
+	"\x05reply\x18\x02 \x01(\tR\x05reply\x12#\n" +
+	"\rmessage_count\x18\x03 \x01(\rR\fmessageCount\"\x0f\n" +
 	"\rHealthRequest\" \n" +
 	"\x0eHealthResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"2\n" +
