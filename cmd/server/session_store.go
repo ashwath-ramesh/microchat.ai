@@ -45,17 +45,24 @@ func (m Message) FormattedString() string {
 		m.Text)
 }
 
+// Session represents a conversation session with messages and last activity timestamp
+// Layer 3: Session management as specified in the architecture document
+type Session struct {
+	Messages   []Message `json:"messages"`
+	LastActive time.Time `json:"last_active"`
+}
+
 // SessionStore provides thread-safe storage for conversation history
-// Layer 2: Structured Message storage as specified in the architecture document
+// Layer 3: Session management as specified in the architecture document
 type SessionStore struct {
 	mu       sync.RWMutex
-	sessions map[uint32][]Message
+	sessions map[uint32]*Session
 }
 
 // NewSessionStore creates a new SessionStore instance
 func NewSessionStore() *SessionStore {
 	return &SessionStore{
-		sessions: make(map[uint32][]Message),
+		sessions: make(map[uint32]*Session),
 	}
 }
 
@@ -65,17 +72,24 @@ func (s *SessionStore) AppendMessage(sessionID uint32, role Role, text string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	now := time.Now().UTC()
+
 	if s.sessions[sessionID] == nil {
-		s.sessions[sessionID] = make([]Message, 0)
+		s.sessions[sessionID] = &Session{
+			Messages:   make([]Message, 0),
+			LastActive: now,
+		}
 	}
 
 	message := Message{
 		Role:      role,
 		Text:      text,
-		Timestamp: time.Now().UTC(),
+		Timestamp: now,
 	}
 
-	s.sessions[sessionID] = append(s.sessions[sessionID], message)
+	session := s.sessions[sessionID]
+	session.Messages = append(session.Messages, message)
+	session.LastActive = now
 }
 
 // GetMessages returns all structured messages for a session
@@ -84,10 +98,10 @@ func (s *SessionStore) GetMessages(sessionID uint32) []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if messages, exists := s.sessions[sessionID]; exists {
+	if session, exists := s.sessions[sessionID]; exists {
 		// Return a copy to prevent external modification
-		result := make([]Message, len(messages))
-		copy(result, messages)
+		result := make([]Message, len(session.Messages))
+		copy(result, session.Messages)
 		return result
 	}
 
@@ -110,4 +124,18 @@ func (s *SessionStore) GetSessionCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.sessions)
+}
+
+// CleanupIdleSessions removes sessions that have been idle for more than 2 hours
+func (s *SessionStore) CleanupIdleSessions() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cutoff := time.Now().UTC().Add(-2 * time.Hour)
+
+	for sessionID, session := range s.sessions {
+		if session.LastActive.Before(cutoff) {
+			delete(s.sessions, sessionID)
+		}
+	}
 }
