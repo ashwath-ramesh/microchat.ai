@@ -2,37 +2,49 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestSessionStore_AppendMessage(t *testing.T) {
 	store := NewSessionStore()
 
 	// Test appending to new session
-	store.AppendMessage(1, "user: Hello")
+	store.AppendMessage(1, User, "Hello")
 	messages := store.GetMessages(1)
 
 	if len(messages) != 1 {
 		t.Errorf("Expected 1 message, got %d", len(messages))
 	}
 
-	if messages[0] != "user: Hello" {
-		t.Errorf("Expected 'user: Hello', got '%s'", messages[0])
+	if messages[0].Role != User {
+		t.Errorf("Expected User role, got %v", messages[0].Role)
+	}
+
+	if messages[0].Text != "Hello" {
+		t.Errorf("Expected 'Hello', got '%s'", messages[0].Text)
 	}
 
 	// Test appending to existing session
-	store.AppendMessage(1, "echo: Hello")
+	store.AppendMessage(1, Assistant, "Hello")
 	messages = store.GetMessages(1)
 
 	if len(messages) != 2 {
 		t.Errorf("Expected 2 messages, got %d", len(messages))
 	}
 
-	expected := []string{"user: Hello", "echo: Hello"}
-	for i, msg := range messages {
-		if msg != expected[i] {
-			t.Errorf("Expected '%s', got '%s'", expected[i], msg)
+	// Test formatted messages with timestamps
+	formattedMessages := store.GetFormattedMessages(1)
+	expected := []string{"user .* UTC.: Hello", "assistant .* UTC.: Hello"}
+	for i, msg := range formattedMessages {
+		matched, err := regexp.MatchString(expected[i], msg)
+		if err != nil {
+			t.Errorf("Regex error: %v", err)
+		}
+		if !matched {
+			t.Errorf("Message '%s' doesn't match expected pattern '%s'", msg, expected[i])
 		}
 	}
 }
@@ -44,20 +56,26 @@ func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
 	if len(messages) != 0 {
 		t.Errorf("Expected empty slice for non-existent session, got %d messages", len(messages))
 	}
+
+	// Test formatted messages for non-existent session
+	formattedMessages := store.GetFormattedMessages(999)
+	if len(formattedMessages) != 0 {
+		t.Errorf("Expected empty slice for non-existent session, got %d formatted messages", len(formattedMessages))
+	}
 }
 
 func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
 	store := NewSessionStore()
-	store.AppendMessage(1, "test message")
+	store.AppendMessage(1, User, "test message")
 
 	messages1 := store.GetMessages(1)
 	messages2 := store.GetMessages(1)
 
 	// Modify one slice
-	messages1[0] = "modified"
+	messages1[0].Text = "modified"
 
 	// Other slice should be unaffected
-	if messages2[0] != "test message" {
+	if messages2[0].Text != "test message" {
 		t.Errorf("GetMessages should return independent copies")
 	}
 }
@@ -77,7 +95,7 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			for j := range messagesPerGoroutine {
 				msg := fmt.Sprintf("goroutine-%d-message-%d", goroutineID, j)
-				store.AppendMessage(sessionID, msg)
+				store.AppendMessage(sessionID, User, msg)
 			}
 		}(i)
 	}
@@ -102,11 +120,88 @@ func TestSessionStore_GetSessionCount(t *testing.T) {
 	}
 
 	// Add messages to different sessions
-	store.AppendMessage(1, "message 1")
-	store.AppendMessage(2, "message 2")
-	store.AppendMessage(1, "message 3") // Same session
+	store.AppendMessage(1, User, "message 1")
+	store.AppendMessage(2, User, "message 2")
+	store.AppendMessage(1, Assistant, "message 3") // Same session
 
 	if count := store.GetSessionCount(); count != 2 {
 		t.Errorf("Expected 2 sessions, got %d", count)
+	}
+}
+
+func TestMessage_FormattedString(t *testing.T) {
+	testCases := []struct {
+		role    Role
+		text    string
+		pattern string
+	}{
+		{User, "Hello", `user \[\d{2}:\d{2}:\d{2} UTC\]: Hello`},
+		{Assistant, "Hi there", `assistant \[\d{2}:\d{2}:\d{2} UTC\]: Hi there`},
+		{System, "System message", `system \[\d{2}:\d{2}:\d{2} UTC\]: System message`},
+	}
+
+	for _, tc := range testCases {
+		msg := Message{
+			Role:      tc.role,
+			Text:      tc.text,
+			Timestamp: time.Now().UTC(),
+		}
+
+		result := msg.FormattedString()
+		matched, err := regexp.MatchString(tc.pattern, result)
+		if err != nil {
+			t.Errorf("Regex error: %v", err)
+		}
+		if !matched {
+			t.Errorf("FormattedString '%s' doesn't match expected pattern '%s'", result, tc.pattern)
+		}
+	}
+}
+
+func TestRole_String(t *testing.T) {
+	testCases := []struct {
+		role     Role
+		expected string
+	}{
+		{User, "user"},
+		{Assistant, "assistant"},
+		{System, "system"},
+		{Role(999), "unknown"},
+	}
+
+	for _, tc := range testCases {
+		result := tc.role.String()
+		if result != tc.expected {
+			t.Errorf("Expected '%s', got '%s'", tc.expected, result)
+		}
+	}
+}
+
+func TestSessionStore_MessageTimestamps(t *testing.T) {
+	store := NewSessionStore()
+
+	before := time.Now()
+	store.AppendMessage(1, User, "First message")
+	time.Sleep(1 * time.Millisecond) // Ensure different timestamps
+	store.AppendMessage(1, Assistant, "Second message")
+	after := time.Now()
+
+	messages := store.GetMessages(1)
+
+	if len(messages) != 2 {
+		t.Errorf("Expected 2 messages, got %d", len(messages))
+	}
+
+	// Check that timestamps are reasonable
+	for i, msg := range messages {
+		if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
+			t.Errorf("Message %d timestamp %v is outside expected range [%v, %v]",
+				i, msg.Timestamp, before, after)
+		}
+	}
+
+	// Check that second message timestamp is after first
+	if !messages[1].Timestamp.After(messages[0].Timestamp) {
+		t.Errorf("Second message timestamp should be after first message timestamp")
 	}
 }
