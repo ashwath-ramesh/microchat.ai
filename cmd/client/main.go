@@ -34,11 +34,12 @@ type config struct {
 }
 
 type application struct {
-	config  config
-	logger  *slog.Logger
-	conn    *grpc.ClientConn
-	grpc    pb.ChatServiceClient
-	metrics metrics
+	config       config
+	logger       *slog.Logger
+	conn         *grpc.ClientConn
+	grpc         pb.ChatServiceClient
+	metrics      metrics
+	messageIndex uint32 // Layer 4: Track message count for delta protocol
 }
 
 func main() {
@@ -169,9 +170,10 @@ func (app *application) startChat() {
 func (app *application) sendMessage(message string) error {
 	ctx := context.Background()
 	req := &pb.ChatRequest{
-		SessionId: uint32(app.config.sessionID), // Convert uint16 to uint32 for protobuf
-		Model:     app.config.model,
-		Message:   message,
+		SessionId:    uint32(app.config.sessionID), // Convert uint16 to uint32 for protobuf
+		Model:        app.config.model,
+		Message:      message,
+		MessageIndex: app.messageIndex, // Layer 4: Include our message index
 	}
 
 	resp, err := app.grpc.Chat(ctx, req)
@@ -179,8 +181,18 @@ func (app *application) sendMessage(message string) error {
 		return err
 	}
 
+	// Layer 4: Update our message index from server's response
+	app.messageIndex = resp.MessageCount
+
 	fmt.Printf("Assistant: %s\n", resp.Reply)
 	app.displayMetrics()
+
+	// Layer 4: Log delta protocol info when detailed metrics enabled
+	if app.config.metricsDetail {
+		fmt.Printf("Delta: Client index=%d, Server count=%d\n",
+			req.MessageIndex, resp.MessageCount)
+	}
+
 	return nil
 }
 
