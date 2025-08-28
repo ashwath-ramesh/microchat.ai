@@ -205,3 +205,74 @@ func TestSessionStore_MessageTimestamps(t *testing.T) {
 		t.Errorf("Second message timestamp should be after first message timestamp")
 	}
 }
+
+func TestSessionStore_LastActiveTimestamp(t *testing.T) {
+	store := NewSessionStore()
+	sessionID := uint32(1)
+
+	store.AppendMessage(sessionID, User, "First message")
+
+	// Sleep to ensure different timestamps
+	time.Sleep(10 * time.Millisecond)
+
+	// Record time before second message
+	middle := time.Now().UTC()
+	store.AppendMessage(sessionID, Assistant, "Second message")
+	after := time.Now().UTC()
+
+	// Access session directly to check LastActive
+	store.mu.RLock()
+	session := store.sessions[sessionID]
+	store.mu.RUnlock()
+
+	if session == nil {
+		t.Fatal("Expected session to exist")
+	}
+
+	// LastActive should be after the second message was added
+	if session.LastActive.Before(middle) {
+		t.Errorf("LastActive should be updated after second message")
+	}
+
+	if session.LastActive.After(after) {
+		t.Errorf("LastActive should not be after test completion")
+	}
+}
+
+func TestSessionStore_CleanupIdleSessions(t *testing.T) {
+	store := NewSessionStore()
+
+	// Create sessions with different ages
+	store.AppendMessage(1, User, "Recent message")
+	store.AppendMessage(2, User, "Old message")
+
+	// Manually set LastActive to simulate old session
+	store.mu.Lock()
+	store.sessions[2].LastActive = time.Now().UTC().Add(-3 * time.Hour) // 3 hours ago
+	store.mu.Unlock()
+
+	// Verify both sessions exist
+	if count := store.GetSessionCount(); count != 2 {
+		t.Errorf("Expected 2 sessions before cleanup, got %d", count)
+	}
+
+	// Run cleanup
+	store.CleanupIdleSessions()
+
+	// Only recent session should remain
+	if count := store.GetSessionCount(); count != 1 {
+		t.Errorf("Expected 1 session after cleanup, got %d", count)
+	}
+
+	// Verify the correct session remains
+	messages := store.GetMessages(1)
+	if len(messages) == 0 {
+		t.Error("Recent session should still exist")
+	}
+
+	// Verify old session is gone
+	messages = store.GetMessages(2)
+	if len(messages) != 0 {
+		t.Error("Old session should be cleaned up")
+	}
+}

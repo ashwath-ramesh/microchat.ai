@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -72,6 +73,16 @@ func main() {
 		logger.Error("failed to listen", "error", err)
 		os.Exit(1)
 	}
+
+	// Start cleanup goroutine for session management
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			app.sessionStore.CleanupIdleSessions()
+		}
+	}()
 
 	logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
 
