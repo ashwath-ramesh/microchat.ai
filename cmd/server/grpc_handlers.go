@@ -30,11 +30,21 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	// Store user message in session (Layer 2: structured format)
 	app.sessionStore.AppendMessage(req.SessionId, User, req.Message)
 
-	// TODO: Replace with actual LLM integration
-	// When connected to LLM, we'll send full history from currentMessages
-	reply := req.Message // Echo back for now
+	// Get LLM provider based on requested model
+	provider := app.getProvider(req.Model)
+	app.logger.Info("using LLM provider", "provider", provider.Name(), "model", req.Model.String())
 
-	// Store echo response in session (Layer 2: structured format)
+	// Get conversation history for LLM
+	messages := app.sessionStore.GetMessagesAsLLMFormat(req.SessionId)
+
+	// Generate response using LLM provider
+	reply, err := provider.GenerateResponse(ctx, messages)
+	if err != nil {
+		app.logger.Error("LLM provider error", "error", err, "provider", provider.Name())
+		reply = "Sorry, I encountered an error processing your request."
+	}
+
+	// Store LLM response in session (Layer 2: structured format)
 	app.sessionStore.AppendMessage(req.SessionId, Assistant, reply)
 
 	// Get updated message count after adding both messages

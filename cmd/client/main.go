@@ -28,6 +28,7 @@ const quitCommand = "/quit"
 type config struct {
 	serverAddr    string
 	model         pb.Model
+	modelString   string // String representation of model for flag parsing
 	sessionID     uint16 // Ultra-low bandwidth: 16-bit value, encodes as ~2 bytes in protobuf
 	metrics       bool   // Show compact session metrics
 	metricsDetail bool   // Show detailed metrics
@@ -46,13 +47,14 @@ func main() {
 	var cfg config
 
 	flag.StringVar(&cfg.serverAddr, "addr", "localhost:4000", "gRPC server address")
+	flag.StringVar(&cfg.modelString, "model", "gemini", "LLM model to use (echo, gemini)")
 	flag.BoolVar(&cfg.metrics, "metrics", false, "show compact session metrics")
 	flag.BoolVar(&cfg.metricsDetail, "metrics-detail", false, "show detailed message and session metrics")
 	flag.Parse()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Set defaults
-	cfg.model = pb.Model_GPT_4
+	// Parse model string to enum
+	cfg.model = parseModel(cfg.modelString, logger)
 	cfg.sessionID = generateSessionID()
 
 	app := &application{
@@ -67,7 +69,7 @@ func main() {
 	}
 	defer app.conn.Close()
 
-	logger.Info("connected to server", "addr", cfg.serverAddr)
+	logger.Info("connected to server", "addr", cfg.serverAddr, "model", cfg.modelString)
 
 	app.startChat()
 }
@@ -78,6 +80,19 @@ func generateSessionID() uint16 {
 	var b [2]byte
 	rand.Read(b[:])
 	return binary.LittleEndian.Uint16(b[:])
+}
+
+// parseModel converts string model name to protobuf Model enum
+func parseModel(modelStr string, logger *slog.Logger) pb.Model {
+	switch strings.ToLower(modelStr) {
+	case "gemini":
+		return pb.Model_GEMINI_2_5_FLASH_LITE
+	case "echo":
+		return pb.Model_ECHO
+	default:
+		logger.Warn("unknown model, using default", "requested", modelStr, "default", "gemini")
+		return pb.Model_GEMINI_2_5_FLASH_LITE // Default to gemini
+	}
 }
 
 func (app *application) connect() error {

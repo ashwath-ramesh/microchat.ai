@@ -1,6 +1,8 @@
 # Go build artifacts
 /cmd/client/client
 /cmd/server/server
+/client
+/server
 *.exe
 *.exe~
 *.dll

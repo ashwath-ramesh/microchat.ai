@@ -24,25 +24,19 @@ const (
 type Model int32
 
 const (
-	Model_GPT_4          Model = 0 // default = 0 bytes in payload
-	Model_GPT_3_5        Model = 1
-	Model_CLAUDE_4       Model = 2
-	Model_GEMINI_2_5_PRO Model = 3
+	Model_GEMINI_2_5_FLASH_LITE Model = 0 // default = 0 bytes in payload
+	Model_ECHO                  Model = 1 // Development/testing only
 )
 
 // Enum value maps for Model.
 var (
 	Model_name = map[int32]string{
-		0: "GPT_4",
-		1: "GPT_3_5",
-		2: "CLAUDE_4",
-		3: "GEMINI_2_5_PRO",
+		0: "GEMINI_2_5_FLASH_LITE",
+		1: "ECHO",
 	}
 	Model_value = map[string]int32{
-		"GPT_4":          0,
-		"GPT_3_5":        1,
-		"CLAUDE_4":       2,
-		"GEMINI_2_5_PRO": 3,
+		"GEMINI_2_5_FLASH_LITE": 0,
+		"ECHO":                  1,
 	}
 )
 
@@ -124,7 +118,7 @@ func (x *ChatRequest) GetModel() Model {
 	if x != nil {
 		return x.Model
 	}
-	return Model_GPT_4
+	return Model_GEMINI_2_5_FLASH_LITE
 }
 
 func (x *ChatRequest) GetMessage() string {
@@ -402,12 +396,10 @@ const file_proto_chat_proto_rawDesc = "" +
 	"\x12GetHistoryResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\rR\tsessionId\x12\x1a\n" +
-	"\bmessages\x18\x02 \x03(\tR\bmessages*A\n" +
-	"\x05Model\x12\t\n" +
-	"\x05GPT_4\x10\x00\x12\v\n" +
-	"\aGPT_3_5\x10\x01\x12\f\n" +
-	"\bCLAUDE_4\x10\x02\x12\x12\n" +
-	"\x0eGEMINI_2_5_PRO\x10\x032\xb2\x01\n" +
+	"\bmessages\x18\x02 \x03(\tR\bmessages*,\n" +
+	"\x05Model\x12\x19\n" +
+	"\x15GEMINI_2_5_FLASH_LITE\x10\x00\x12\b\n" +
+	"\x04ECHO\x10\x012\xb2\x01\n" +
 	"\vChatService\x12-\n" +
 	"\x04Chat\x12\x11.chat.ChatRequest\x1a\x12.chat.ChatResponse\x123\n" +
 	"\x06Health\x12\x13.chat.HealthRequest\x1a\x14.chat.HealthResponse\x12?\n" +
