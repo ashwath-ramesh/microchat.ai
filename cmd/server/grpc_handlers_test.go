@@ -26,7 +26,7 @@ func setupTestApplication(t *testing.T) *application {
 func TestDeltaProtocol(t *testing.T) {
 	app := setupTestApplication(t)
 	ctx := context.Background()
-	sessionID := uint32(1000)
+	sessionID := "test-session-1000"
 
 	// First message: index=0, expect count=2
 	req1 := &pb.ChatRequest{
@@ -66,7 +66,7 @@ func TestDeltaProtocol(t *testing.T) {
 func TestDeltaProtocolWrongIndex(t *testing.T) {
 	app := setupTestApplication(t)
 	ctx := context.Background()
-	sessionID := uint32(2000)
+	sessionID := "test-session-2000"
 
 	// Create session
 	app.Chat(ctx, &pb.ChatRequest{
@@ -93,7 +93,7 @@ func TestDeltaProtocolWrongIndex(t *testing.T) {
 func TestDeltaProtocolBackwardCompatibility(t *testing.T) {
 	app := setupTestApplication(t)
 	ctx := context.Background()
-	sessionID := uint32(3000)
+	sessionID := "test-session-3000"
 
 	// Send without MessageIndex (defaults to 0)
 	req := &pb.ChatRequest{
