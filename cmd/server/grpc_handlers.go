@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	pb "microchat.ai/proto"
 )
 
@@ -52,7 +54,7 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	reply, err := provider.GenerateResponse(ctx, messages)
 	if err != nil {
 		app.logger.Error("LLM provider error", "error", err, "provider", provider.Name())
-		reply = "Sorry, I encountered an error processing your request."
+		return nil, status.Errorf(codes.Internal, "LLM provider failed: %v", err)
 	}
 
 	// Store LLM response in session (Layer 2: structured format)
