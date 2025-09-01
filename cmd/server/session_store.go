@@ -58,21 +58,21 @@ type Session struct {
 // Layer 3: Session management as specified in the architecture document
 type SessionStore struct {
 	mu          sync.RWMutex
-	sessions    map[uint32]*Session
+	sessions    map[string]*Session
 	idleTimeout time.Duration
 }
 
 // NewSessionStore creates a new SessionStore instance
 func NewSessionStore(idleTimeout time.Duration) *SessionStore {
 	return &SessionStore{
-		sessions:    make(map[uint32]*Session),
+		sessions:    make(map[string]*Session),
 		idleTimeout: idleTimeout,
 	}
 }
 
 // AppendMessage adds a structured message to the session history
 // Creates session if it doesn't exist
-func (s *SessionStore) AppendMessage(sessionID uint32, role Role, text string) {
+func (s *SessionStore) AppendMessage(sessionID string, role Role, text string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -98,7 +98,7 @@ func (s *SessionStore) AppendMessage(sessionID uint32, role Role, text string) {
 
 // GetMessages returns all structured messages for a session
 // Returns empty slice if session doesn't exist
-func (s *SessionStore) GetMessages(sessionID uint32) []Message {
+func (s *SessionStore) GetMessages(sessionID string) []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -114,7 +114,7 @@ func (s *SessionStore) GetMessages(sessionID uint32) []Message {
 
 // GetFormattedMessages returns all messages for a session as formatted strings
 // For backward compatibility with Layer 1 format
-func (s *SessionStore) GetFormattedMessages(sessionID uint32) []string {
+func (s *SessionStore) GetFormattedMessages(sessionID string) []string {
 	messages := s.GetMessages(sessionID)
 	result := make([]string, len(messages))
 	for i, msg := range messages {
@@ -131,7 +131,7 @@ func (s *SessionStore) GetSessionCount() int {
 }
 
 // GetMessagesAsLLMFormat returns messages in the format expected by LLM providers
-func (s *SessionStore) GetMessagesAsLLMFormat(sessionID uint32) []llm.Message {
+func (s *SessionStore) GetMessagesAsLLMFormat(sessionID string) []llm.Message {
 	messages := s.GetMessages(sessionID)
 	result := make([]llm.Message, len(messages))
 

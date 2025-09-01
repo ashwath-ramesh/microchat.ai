@@ -3,10 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -30,7 +28,7 @@ type config struct {
 	serverAddr    string
 	model         pb.Model
 	modelString   string // String representation of model for flag parsing
-	sessionID     uint16 // Ultra-low bandwidth: 16-bit value, encodes as ~2 bytes in protobuf
+	sessionID     string // Server-generated UUID session ID
 	metrics       bool   // Show compact session metrics
 	metricsDetail bool   // Show detailed metrics
 }
@@ -72,7 +70,6 @@ func main() {
 
 	// Parse model string to enum
 	cfg.model = parseModel(cfg.modelString, logger)
-	cfg.sessionID = generateSessionID()
 
 	app := &application{
 		config: cfg,
@@ -86,18 +83,17 @@ func main() {
 	}
 	defer app.conn.Close()
 
-	logger.Info("connected to server", "addr", cfg.serverAddr, "model", cfg.modelString)
+	// Start session and get server-generated session ID
+	if err := app.startSession(); err != nil {
+		logger.Error("failed to start session", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("connected to server", "addr", cfg.serverAddr, "model", cfg.modelString, "session_id", app.config.sessionID)
 
 	app.startChat()
 }
 
-// Returns uint16 (~2 bytes in protobuf). Uses crypto/rand for secure generation.
-// Collision probability ~0.15% with 200 concurrent sessions, ~0.76% with 1000 sessions.
-func generateSessionID() uint16 {
-	var b [2]byte
-	rand.Read(b[:])
-	return binary.LittleEndian.Uint16(b[:])
-}
 
 // parseModel converts string model name to protobuf Model enum
 func parseModel(modelStr string, logger *slog.Logger) pb.Model {
@@ -160,6 +156,19 @@ func (app *application) connect() error {
 	return nil
 }
 
+func (app *application) startSession() error {
+	ctx := context.Background()
+	req := &pb.StartSessionRequest{}
+
+	resp, err := app.grpc.StartSession(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	app.config.sessionID = resp.SessionId
+	return nil
+}
+
 func (app *application) startChat() {
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -207,7 +216,7 @@ func (app *application) startChat() {
 func (app *application) sendMessage(message string) error {
 	ctx := context.Background()
 	req := &pb.ChatRequest{
-		SessionId:    uint32(app.config.sessionID), // Convert uint16 to uint32 for protobuf
+		SessionId:    app.config.sessionID, // Server-generated UUID session ID
 		Model:        app.config.model,
 		Message:      message,
 		MessageIndex: app.messageIndex, // Layer 4: Include our message index
