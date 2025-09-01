@@ -191,7 +191,7 @@ func TestChatValidation(t *testing.T) {
 	// Test valid input should work - use mock for deterministic behavior
 	app2, mockProvider := setupTestApplicationWithMock(t)
 	mockProvider.SetResponses("Valid response", "Unicode response")
-	
+
 	req = &pb.ChatRequest{
 		SessionId: "550e8400-e29b-41d4-a716-446655440000", // Valid UUID
 		Message:   "Hello, this is a valid message!",
@@ -346,7 +346,7 @@ func TestChatWithMockProviderError(t *testing.T) {
 func TestMockedTestsRunInIsolation(t *testing.T) {
 	// This test verifies that we can run tests without any external dependencies
 	// by ensuring our mock provider works without network calls
-	
+
 	app, mockProvider := setupTestApplicationWithMock(t)
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"

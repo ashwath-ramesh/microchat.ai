@@ -5,7 +5,9 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -147,19 +149,41 @@ func main() {
 	}
 
 	// Start cleanup goroutine for session management
+	done := make(chan bool)
 	go func() {
 		ticker := time.NewTicker(cfg.sessionCleanupInterval)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			app.sessionStore.CleanupIdleSessions()
+		for {
+			select {
+			case <-ticker.C:
+				app.sessionStore.CleanupIdleSessions()
+			case <-done:
+				return
+			}
 		}
 	}()
 
-	logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
+	// Setup graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	if err := s.Serve(lis); err != nil {
-		logger.Error("failed to serve", "error", err)
-		os.Exit(1)
-	}
+	// Start server in goroutine
+	go func() {
+		logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
+		if err := s.Serve(lis); err != nil {
+			logger.Error("failed to serve", "error", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-sigChan
+	logger.Info("shutting down gracefully...")
+
+	// Stop cleanup goroutine
+	close(done)
+
+	// Gracefully stop the gRPC server
+	s.GracefulStop()
+	logger.Info("server stopped")
 }

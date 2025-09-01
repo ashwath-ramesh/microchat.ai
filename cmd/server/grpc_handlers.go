@@ -49,7 +49,7 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 		app.logger.Warn("invalid session ID", "session_id", req.SessionId, "error", err)
 		return nil, err
 	}
-	
+
 	if err := validateMessage(req.Message); err != nil {
 		app.logger.Warn("invalid message", "session_id", req.SessionId, "message_len", len(req.Message), "error", err)
 		return nil, err
