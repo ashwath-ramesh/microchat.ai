@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/reflection"
 
 	"microchat.ai/cmd/server/llm"
+	"microchat.ai/cmd/server/ratelimit"
 	pb "microchat.ai/proto"
 )
 
@@ -25,12 +27,15 @@ type config struct {
 	env                    string
 	sessionCleanupInterval time.Duration
 	sessionIdleTimeout     time.Duration
+	rateLimitRPS           rate.Limit
+	rateLimitBurst         int
 }
 
 type application struct {
 	config          config
 	logger          *slog.Logger
 	sessionStore    *SessionStore
+	ipLimiter       *ratelimit.IPLimiter
 	providerFactory func(pb.Model, *slog.Logger) llm.Provider // For dependency injection in tests
 	pb.UnimplementedChatServiceServer
 }
@@ -99,6 +104,29 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.sessionIdleTimeout = timeout
 
+	// Parse rate limiting configuration
+	rpsStr := os.Getenv("RATE_LIMIT_RPS")
+	if rpsStr == "" {
+		rpsStr = "10" // Default to 10 RPS
+	}
+	rpsInt, err := strconv.Atoi(rpsStr)
+	if err != nil || rpsInt <= 0 {
+		logger.Error("invalid RATE_LIMIT_RPS value", "value", rpsStr, "error", err)
+		return cfg, fmt.Errorf("invalid RATE_LIMIT_RPS: %w", err)
+	}
+	cfg.rateLimitRPS = rate.Limit(rpsInt)
+
+	burstStr := os.Getenv("RATE_LIMIT_BURST")
+	if burstStr == "" {
+		burstStr = "20" // Default to 20 burst
+	}
+	burstInt, err := strconv.Atoi(burstStr)
+	if err != nil || burstInt <= 0 {
+		logger.Error("invalid RATE_LIMIT_BURST value", "value", burstStr, "error", err)
+		return cfg, fmt.Errorf("invalid RATE_LIMIT_BURST: %w", err)
+	}
+	cfg.rateLimitBurst = burstInt
+
 	return cfg, nil
 }
 
@@ -114,6 +142,7 @@ func main() {
 		config:       cfg,
 		logger:       logger,
 		sessionStore: NewSessionStore(cfg.sessionIdleTimeout),
+		ipLimiter:    ratelimit.NewIPLimiter(cfg.rateLimitRPS, cfg.rateLimitBurst),
 	}
 
 	// create gRPC server with compression and TLS
@@ -131,7 +160,12 @@ func main() {
 		logger.Error("failed to load TLS credentials", "error", err)
 		os.Exit(1)
 	}
-	s := grpc.NewServer(grpc.Creds(creds))
+	
+	// Create gRPC server with rate limiting interceptor
+	s := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.UnaryInterceptor(RateLimitInterceptor(app.ipLimiter)),
+	)
 
 	// register service
 	pb.RegisterChatServiceServer(s, app)
@@ -182,6 +216,9 @@ func main() {
 
 	// Stop cleanup goroutine
 	close(done)
+	
+	// Stop rate limiter cleanup
+	app.ipLimiter.Stop()
 
 	// Gracefully stop the gRPC server
 	s.GracefulStop()
