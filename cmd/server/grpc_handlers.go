@@ -9,6 +9,29 @@ import (
 	pb "microchat.ai/proto"
 )
 
+// validateSessionID checks if session ID is valid UUID format
+func validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return status.Error(codes.InvalidArgument, "session ID cannot be empty")
+	}
+	if _, err := uuid.Parse(sessionID); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid session ID format: %v", err)
+	}
+	return nil
+}
+
+// validateMessage checks if message is valid
+func validateMessage(message string) error {
+	if message == "" {
+		return status.Error(codes.InvalidArgument, "message cannot be empty")
+	}
+	const maxMessageSize = 10 * 1024 // 10KB
+	if len(message) > maxMessageSize {
+		return status.Errorf(codes.InvalidArgument, "message too large: %d bytes (max %d)", len(message), maxMessageSize)
+	}
+	return nil
+}
+
 // StartSession creates a new session with server-generated UUID
 func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
 	sessionID := uuid.New().String()
@@ -21,6 +44,17 @@ func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRe
 
 // Implement ChatService interface
 func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.ChatResponse, error) {
+	// Validate input parameters
+	if err := validateSessionID(req.SessionId); err != nil {
+		app.logger.Warn("invalid session ID", "session_id", req.SessionId, "error", err)
+		return nil, err
+	}
+	
+	if err := validateMessage(req.Message); err != nil {
+		app.logger.Warn("invalid message", "session_id", req.SessionId, "message_len", len(req.Message), "error", err)
+		return nil, err
+	}
+
 	app.logger.Info("received chat request",
 		"session_id", req.SessionId,
 		"model", req.Model,
@@ -77,6 +111,12 @@ func (app *application) Health(ctx context.Context, req *pb.HealthRequest) (*pb.
 }
 
 func (app *application) GetHistory(ctx context.Context, req *pb.GetHistoryRequest) (*pb.GetHistoryResponse, error) {
+	// Validate session ID
+	if err := validateSessionID(req.SessionId); err != nil {
+		app.logger.Warn("invalid session ID in get history", "session_id", req.SessionId, "error", err)
+		return nil, err
+	}
+
 	app.logger.Info("received get history request", "session_id", req.SessionId)
 
 	messages := app.sessionStore.GetFormattedMessages(req.SessionId)
