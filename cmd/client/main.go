@@ -9,15 +9,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/status"
 
 	pb "microchat.ai/proto"
 )
@@ -109,6 +113,27 @@ func parseModel(modelStr string, logger *slog.Logger) pb.Model {
 }
 
 func (app *application) connect() error {
+	const maxRetries = 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
+			app.logger.Info("retrying connection", "attempt", attempt+1, "delay", delay)
+			time.Sleep(delay)
+		}
+
+		err := app.attemptConnect()
+		if err == nil {
+			return nil
+		}
+
+		if attempt == maxRetries {
+			return fmt.Errorf("failed to connect after %d attempts: %v", maxRetries+1, err)
+		}
+	}
+	return nil
+}
+
+func (app *application) attemptConnect() error {
 	serverName := os.Getenv("SERVER_NAME")
 	if serverName == "" {
 		serverName = "localhost"
@@ -202,7 +227,18 @@ func (app *application) startChat() {
 		}
 
 		if err := app.sendMessage(input); err != nil {
-			app.logger.Error("failed to send message", "error", err)
+			grpcStatus, ok := status.FromError(err)
+			if ok {
+				switch grpcStatus.Code() {
+				case codes.Internal, codes.Unavailable:
+					fmt.Printf("Error: %s (server is experiencing issues)\n", grpcStatus.Message())
+				default:
+					fmt.Printf("Error: %s\n", grpcStatus.Message())
+				}
+			} else {
+				app.logger.Error("failed to send message", "error", err)
+				fmt.Printf("Error: Connection failed. Please try again.\n")
+			}
 		}
 
 		fmt.Print("> ")
