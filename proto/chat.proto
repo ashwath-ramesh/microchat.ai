@@ -9,7 +9,7 @@ service ChatService {
     rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
 }
 
-message ChatReguest {
+message ChatRequest {
   uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
   Model model         = 2;  // enum, defaults to 0
   string message      = 3;  // your actual chat message
@@ -38,9 +38,7 @@ message GetHistoryResponse {
 }
 
 enum Model {
-  GPT_4           = 0;      // default = 0 bytes in payload
-  GPT_3_5         = 1;
-  CLAUDE_4        = 2;
-  GEMINI_2_5_PRO  = 3;
+  GEMINI_2_5_FLASH_LITE  = 0;      // default = 0 bytes in payload
+  ECHO                   = 1;      // Development/testing only
 }
 

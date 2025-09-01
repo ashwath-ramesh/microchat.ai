@@ -13,6 +13,7 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/reflection"
 
+	"microchat.ai/cmd/server/llm"
 	pb "microchat.ai/proto"
 )
 
@@ -26,6 +27,11 @@ type application struct {
 	logger       *slog.Logger
 	sessionStore *SessionStore
 	pb.UnimplementedChatServiceServer
+}
+
+// getProvider returns the appropriate LLM provider for the requested model
+func (app *application) getProvider(model pb.Model) llm.Provider {
+	return llm.NewProvider(model, app.logger)
 }
 
 func main() {

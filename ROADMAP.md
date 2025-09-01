@@ -11,13 +11,14 @@ Ultra-low bandwidth chat client for high-latency connections.
 - gzip compression
 - TLS security
 - Bandwidth tracking and metrics
+- Stateful server with in-memory session storage
+- Delta protocol with message index synchronization
+- Structured message format with roles and timestamps
 
 ## Upcoming Features
 
 ### Server-Side Optimization
 
-- **Stateful server** - Store conversation history server-side
-- **Delta protocol** - Send only new messages, not full history
 - **Rate limiting** - Prevent abuse and manage server resources
 
 ### Advanced Compression
@@ -27,7 +28,8 @@ Ultra-low bandwidth chat client for high-latency connections.
 
 ### LLM Integration
 
-- **Multi-LLM support** - Connect to various language model providers
+- **Single-LLM support** - Connect to language model provider (currently echo-only)
+- **Multi-LLM support** - Connect to various language model providers  
 - **Smart context pruning** - Summarize conversation history
 - **Streaming responses** - Real-time token streaming
 

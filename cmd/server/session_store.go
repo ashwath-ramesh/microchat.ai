@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"microchat.ai/cmd/server/llm"
 )
 
 // Role represents the role of a message sender
@@ -124,6 +126,21 @@ func (s *SessionStore) GetSessionCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.sessions)
+}
+
+// GetMessagesAsLLMFormat returns messages in the format expected by LLM providers
+func (s *SessionStore) GetMessagesAsLLMFormat(sessionID uint32) []llm.Message {
+	messages := s.GetMessages(sessionID)
+	result := make([]llm.Message, len(messages))
+
+	for i, msg := range messages {
+		result[i] = llm.Message{
+			Role: msg.Role.String(),
+			Text: msg.Text,
+		}
+	}
+
+	return result
 }
 
 // CleanupIdleSessions removes sessions that have been idle for more than 2 hours

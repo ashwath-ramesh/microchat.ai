@@ -12,7 +12,7 @@ import (
 func setupTestApp(t *testing.T) *application {
 	cfg := config{
 		serverAddr: "localhost:4000",
-		model:      pb.Model_GPT_4,
+		model:      pb.Model_GEMINI_2_5_FLASH_LITE,
 		sessionID:  generateSessionID(),
 	}
 

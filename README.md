@@ -38,27 +38,31 @@ This system minimizes data collection while maintaining practical functionality:
 **What we track:**
 
 - **IP addresses**: Used for rate limiting
-- **Session IDs**: Random 16-bit identifiers for session request correlation
+- **Session IDs**: Random identifiers for session request correlation
 - **Bandwidth metrics**: Request/response sizes for system monitoring
-- **Messages**: Proxied to LLMs, stored in memory, deleted when session ends
+- **Conversation history**: Messages stored in memory with structured metadata
+to maintain conversation context and enable bandwidth optimization
 
 **What we DON'T store:**
 
-- **User identities**: No authentication, accounts, or tracking currently
-- **Persistent chat history**: Sessions are ephemeral - everything forgotten on disconnect
+- **User identities**: No authentication, accounts, or tracking
+- **Persistent chat history**: Sessions are ephemeral - all conversation data is held only in RAM
+- **Message logs**: Server logs contain operational metadata but never actual message content
 
 **Technical details:**
 
-- Sessions use random 16-bit IDs (65,536 possibilities) in memory only
-- No database - all state is held in RAM and cleared on disconnect
+- Sessions use randomly generated IDs stored in memory only
+- No database - all conversation state is held in RAM and cleared when sessions end
+- Structured message storage enables delta protocol optimization (sending only new messages)
 - TLS encryption for all client-server communication
-- Future versions may implement client-side caching for optimization
+- Automatic cleanup removes idle sessions to prevent memory buildup
 
 **Important limitations:**
 
 - Your messages ARE sent to LLM providers with their own data policies
 - IP-based rate limiting means shared networks (offices, cafes) share limits
-- Server logs may contain metadata (timestamps, errors) but never messages
+- Conversation history persists in server memory during active sessions for context and optimization
+- All data is ephemeral but may remain in memory until session cleanup occurs
 
 Never send passwords, API keys, or other sensitive information through any chat system.
 
@@ -69,18 +73,28 @@ server and LLM calls myself. To prevent abuse, I've set reasonable
 rate limits on the public proxy. These limits should be more than
 enough for normal conversations.
 
-## Deployment
+## Quick Start
 
-**Local Development:**
+**Development (no API key needed):**
 
-- `git clone <repo>` and `cd microchat.ai`
-- `./certs/generate-certs.sh` to create certificates  
-- `cp .env.example .env` for configuration
-- `make server` and `make client` to run
+```bash
+git clone <repo> && cd microchat.ai
+./certs/generate-certs.sh
+cp .env.example .env
+make dev-server        # Terminal 1
+make dev-client-echo    # Terminal 2
+```
 
-**Production with Caddy:**
+**Production (requires Gemini API key):**
 
-- Install Go and Caddy on VPS
-- Configure Caddyfile: `yourdomain.com { reverse_proxy localhost:4000 }`
-- Create production `.env` (no TLS vars needed - Caddy handles TLS)
-- `make server` to run (app serves on :4000, Caddy proxies with TLS)
+1. Get API key: <https://ai.google.dev/gemini-api/docs/api-key>
+2. Add to `.env`: `GEMINI_API_KEY=your_key_here`  
+3. Run: `make prod-server` and `make prod-client-gemini`
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+- `GEMINI_API_KEY` - Your Gemini API key (production only)
+- `APP_ENV=development` - Enables Echo provider (no API key needed)
+- Certificate paths - Use defaults for development
