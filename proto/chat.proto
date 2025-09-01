@@ -4,20 +4,27 @@ package chat;
 option go_package = "./proto";
 
 service ChatService {
+    rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
     rpc Chat(ChatRequest) returns (ChatResponse);
     rpc Health(HealthRequest) returns (HealthResponse);
     rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
 }
 
+message StartSessionRequest {}
+
+message StartSessionResponse {
+  string session_id = 1;  // Server-generated UUID session ID
+}
+
 message ChatRequest {
-  uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
+  string session_id   = 1;  // Server-generated UUID session ID
   Model model         = 2;  // enum, defaults to 0
   string message      = 3;  // your actual chat message
   uint32 message_index = 4; // Index of last message client has, 0 for full context
 }
 
 message ChatResponse {
-  uint32 session_id   = 1;  // Ultra-low bandwidth: small values encode as ~2 bytes
+  string session_id   = 1;  // Server-generated UUID session ID
   string reply        = 2;
   uint32 message_count = 3; // Total messages in session after this response
 }
@@ -29,11 +36,11 @@ message HealthResponse {
 }
 
 message GetHistoryRequest {
-  uint32 session_id = 1;  // Session to get history for
+  string session_id = 1;  // Session to get history for
 }
 
 message GetHistoryResponse {
-  uint32 session_id = 1;  // Session ID
+  string session_id = 1;  // Session ID
   repeated string messages = 2;  // All messages in session
 }
 

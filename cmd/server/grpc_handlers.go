@@ -3,8 +3,19 @@ package main
 import (
 	"context"
 
+	"github.com/google/uuid"
 	pb "microchat.ai/proto"
 )
+
+// StartSession creates a new session with server-generated UUID
+func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
+	sessionID := uuid.New().String()
+	app.logger.Info("created new session", "session_id", sessionID)
+	
+	return &pb.StartSessionResponse{
+		SessionId: sessionID,
+	}, nil
+}
 
 // Implement ChatService interface
 func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.ChatResponse, error) {
