@@ -9,7 +9,7 @@ import (
 )
 
 func TestSessionStore_AppendMessage(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 
 	// Test appending to new session
 	store.AppendMessage(1, User, "Hello")
@@ -50,7 +50,7 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 }
 
 func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 
 	messages := store.GetMessages(999)
 	if len(messages) != 0 {
@@ -65,7 +65,7 @@ func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
 }
 
 func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 	store.AppendMessage(1, User, "test message")
 
 	messages1 := store.GetMessages(1)
@@ -81,7 +81,7 @@ func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
 }
 
 func TestSessionStore_ConcurrentAccess(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 	var wg sync.WaitGroup
 	sessionID := uint32(1)
 
@@ -112,7 +112,7 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 }
 
 func TestSessionStore_GetSessionCount(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 
 	// Initially empty
 	if count := store.GetSessionCount(); count != 0 {
@@ -178,7 +178,7 @@ func TestRole_String(t *testing.T) {
 }
 
 func TestSessionStore_MessageTimestamps(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 
 	before := time.Now()
 	store.AppendMessage(1, User, "First message")
@@ -207,7 +207,7 @@ func TestSessionStore_MessageTimestamps(t *testing.T) {
 }
 
 func TestSessionStore_LastActiveTimestamp(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 	sessionID := uint32(1)
 
 	store.AppendMessage(sessionID, User, "First message")
@@ -240,7 +240,7 @@ func TestSessionStore_LastActiveTimestamp(t *testing.T) {
 }
 
 func TestSessionStore_CleanupIdleSessions(t *testing.T) {
-	store := NewSessionStore()
+	store := NewSessionStore(2 * time.Hour)
 
 	// Create sessions with different ages
 	store.AppendMessage(1, User, "Recent message")

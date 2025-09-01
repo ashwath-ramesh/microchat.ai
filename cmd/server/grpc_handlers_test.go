@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	pb "microchat.ai/proto"
 )
@@ -15,7 +16,7 @@ func setupTestApplication(t *testing.T) *application {
 
 	app := &application{
 		logger:       logger,
-		sessionStore: NewSessionStore(),
+		sessionStore: NewSessionStore(2 * time.Hour),
 	}
 
 	return app

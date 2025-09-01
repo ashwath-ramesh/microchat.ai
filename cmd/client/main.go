@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
@@ -43,7 +44,24 @@ type application struct {
 	messageIndex uint32 // Layer 4: Track message count for delta protocol
 }
 
+// loadEnv loads environment variables from .env file
+func loadEnv(logger *slog.Logger) error {
+	// Load .env file from project root (required)
+	if err := godotenv.Load("../../.env"); err != nil {
+		logger.Error("failed to load .env file", "error", err)
+		return err
+	}
+	return nil
+}
+
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Load environment variables
+	if err := loadEnv(logger); err != nil {
+		os.Exit(1)
+	}
+
 	var cfg config
 
 	flag.StringVar(&cfg.serverAddr, "addr", "localhost:4000", "gRPC server address")
@@ -51,7 +69,6 @@ func main() {
 	flag.BoolVar(&cfg.metrics, "metrics", false, "show compact session metrics")
 	flag.BoolVar(&cfg.metricsDetail, "metrics-detail", false, "show detailed message and session metrics")
 	flag.Parse()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Parse model string to enum
 	cfg.model = parseModel(cfg.modelString, logger)
@@ -101,18 +118,23 @@ func (app *application) connect() error {
 		serverName = "localhost"
 	}
 
-	// Load CA certificate
+	// Load CA certificate (required)
 	caPath := os.Getenv("CA_CERT_FILE")
 	if caPath == "" {
-		caPath = "../../certs/ca.crt" // relative to cmd/client when using Makefile
+		app.logger.Error("CA_CERT_FILE environment variable is required")
+		return fmt.Errorf("CA_CERT_FILE environment variable is required")
 	}
-	caCert, err := ioutil.ReadFile(caPath)
+	// Resolve path relative to project root (since client runs from cmd/client)
+	fullCaPath := "../../" + caPath
+	caCert, err := ioutil.ReadFile(fullCaPath)
 	if err != nil {
-		return fmt.Errorf("failed to read CA certificate: %v", err)
+		app.logger.Error("failed to read CA certificate", "path", fullCaPath, "error", err)
+		return fmt.Errorf("failed to read CA certificate from %s: %v", fullCaPath, err)
 	}
 
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCert) {
+		app.logger.Error("failed to append CA certificate", "path", fullCaPath)
 		return fmt.Errorf("failed to append CA certificate")
 	}
 

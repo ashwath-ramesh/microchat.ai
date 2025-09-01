@@ -7,11 +7,11 @@
 
 # Development server (allows Echo provider)
 dev-server:
-	cd cmd/server && APP_ENV=development TLS_CERT_FILE=../../certs/server.crt TLS_KEY_FILE=../../certs/server.key go run . -env=development
+	cd cmd/server && APP_ENV=development TLS_CERT_FILE=../../certs/server.crt TLS_KEY_FILE=../../certs/server.key go run .
 
 # Production server (no Echo provider access)
 prod-server:
-	cd cmd/server && TLS_CERT_FILE=../../certs/server.crt TLS_KEY_FILE=../../certs/server.key go run . -env=production
+	cd cmd/server && APP_ENV=production TLS_CERT_FILE=../../certs/server.crt TLS_KEY_FILE=../../certs/server.key go run .
 
 # =============================================================================
 # CLIENT TARGETS
