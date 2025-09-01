@@ -13,7 +13,7 @@ import (
 func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
 	sessionID := uuid.New().String()
 	app.logger.Info("created new session", "session_id", sessionID)
-	
+
 	return &pb.StartSessionResponse{
 		SessionId: sessionID,
 	}, nil

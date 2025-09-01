@@ -98,7 +98,6 @@ func main() {
 	app.startChat()
 }
 
-
 // parseModel converts string model name to protobuf Model enum
 func parseModel(modelStr string, logger *slog.Logger) pb.Model {
 	switch strings.ToLower(modelStr) {

@@ -6,13 +6,19 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	pb "microchat.ai/proto"
 )
+
+// generateSessionID creates a new UUID session ID for testing
+func generateSessionID() string {
+	return uuid.New().String()
+}
 
 func setupTestApp(t *testing.T) *application {
 	// Set required environment variable for testing
 	os.Setenv("CA_CERT_FILE", "certs/ca.crt")
-	
+
 	cfg := config{
 		serverAddr: "localhost:4000",
 		model:      pb.Model_GEMINI_2_5_FLASH_LITE,
@@ -56,7 +62,7 @@ func TestChatMessage(t *testing.T) {
 	ctx := context.Background()
 
 	req := &pb.ChatRequest{
-		SessionId: uint32(app.config.sessionID),
+		SessionId: app.config.sessionID,
 		Model:     app.config.model,
 		Message:   testMessage,
 	}
@@ -70,8 +76,8 @@ func TestChatMessage(t *testing.T) {
 		t.Error("Expected non-empty reply")
 	}
 
-	if resp.SessionId != uint32(app.config.sessionID) {
-		t.Errorf("Expected session ID %d, got %d", app.config.sessionID, resp.SessionId)
+	if resp.SessionId != app.config.sessionID {
+		t.Errorf("Expected session ID %s, got %s", app.config.sessionID, resp.SessionId)
 	}
 
 	t.Logf("Chat successful: sent='%s', received='%s'", testMessage, resp.Reply)
@@ -83,7 +89,7 @@ func TestMessageIndexTracking(t *testing.T) {
 	defer app.conn.Close()
 
 	ctx := context.Background()
-	sessionID := uint32(app.config.sessionID)
+	sessionID := app.config.sessionID
 
 	// First message: index=0, expect count=2
 	resp1, _ := app.grpc.Chat(ctx, &pb.ChatRequest{
@@ -126,13 +132,13 @@ func TestDeltaProtocolEdgeCases(t *testing.T) {
 	// Edge case 1: Wrong index (should still work)
 	sessionID1 := generateSessionID()
 	app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId:    uint32(sessionID1),
+		SessionId:    sessionID1,
 		Message:      "First",
 		MessageIndex: 0,
 	})
 
 	resp, _ := app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId:    uint32(sessionID1),
+		SessionId:    sessionID1,
 		Message:      "Wrong index",
 		MessageIndex: 10, // Wrong: should be 2
 	})
@@ -143,7 +149,7 @@ func TestDeltaProtocolEdgeCases(t *testing.T) {
 	// Edge case 2: No index field (backward compatibility)
 	sessionID2 := generateSessionID()
 	resp2, _ := app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId: uint32(sessionID2),
+		SessionId: sessionID2,
 		Message:   "No index",
 		// MessageIndex omitted
 	})

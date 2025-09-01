@@ -12,8 +12,8 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
 
 	// Test appending to new session
-	store.AppendMessage(1, User, "Hello")
-	messages := store.GetMessages(1)
+	store.AppendMessage("test-session-1", User, "Hello")
+	messages := store.GetMessages("test-session-1")
 
 	if len(messages) != 1 {
 		t.Errorf("Expected 1 message, got %d", len(messages))
@@ -28,15 +28,15 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 	}
 
 	// Test appending to existing session
-	store.AppendMessage(1, Assistant, "Hello")
-	messages = store.GetMessages(1)
+	store.AppendMessage("test-session-1", Assistant, "Hello")
+	messages = store.GetMessages("test-session-1")
 
 	if len(messages) != 2 {
 		t.Errorf("Expected 2 messages, got %d", len(messages))
 	}
 
 	// Test formatted messages with timestamps
-	formattedMessages := store.GetFormattedMessages(1)
+	formattedMessages := store.GetFormattedMessages("test-session-1")
 	expected := []string{"user .* UTC.: Hello", "assistant .* UTC.: Hello"}
 	for i, msg := range formattedMessages {
 		matched, err := regexp.MatchString(expected[i], msg)
@@ -52,13 +52,13 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
 
-	messages := store.GetMessages(999)
+	messages := store.GetMessages("nonexistent-session")
 	if len(messages) != 0 {
 		t.Errorf("Expected empty slice for non-existent session, got %d messages", len(messages))
 	}
 
 	// Test formatted messages for non-existent session
-	formattedMessages := store.GetFormattedMessages(999)
+	formattedMessages := store.GetFormattedMessages("nonexistent-session")
 	if len(formattedMessages) != 0 {
 		t.Errorf("Expected empty slice for non-existent session, got %d formatted messages", len(formattedMessages))
 	}
@@ -66,10 +66,10 @@ func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
 
 func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
-	store.AppendMessage(1, User, "test message")
+	store.AppendMessage("test-session-1", User, "test message")
 
-	messages1 := store.GetMessages(1)
-	messages2 := store.GetMessages(1)
+	messages1 := store.GetMessages("test-session-1")
+	messages2 := store.GetMessages("test-session-1")
 
 	// Modify one slice
 	messages1[0].Text = "modified"
@@ -83,7 +83,7 @@ func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
 func TestSessionStore_ConcurrentAccess(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
 	var wg sync.WaitGroup
-	sessionID := uint32(1)
+	sessionID := "concurrent-test-session"
 
 	// Start multiple goroutines appending messages
 	numGoroutines := 10
@@ -120,9 +120,9 @@ func TestSessionStore_GetSessionCount(t *testing.T) {
 	}
 
 	// Add messages to different sessions
-	store.AppendMessage(1, User, "message 1")
-	store.AppendMessage(2, User, "message 2")
-	store.AppendMessage(1, Assistant, "message 3") // Same session
+	store.AppendMessage("session-1", User, "message 1")
+	store.AppendMessage("session-2", User, "message 2")
+	store.AppendMessage("session-1", Assistant, "message 3") // Same session
 
 	if count := store.GetSessionCount(); count != 2 {
 		t.Errorf("Expected 2 sessions, got %d", count)
@@ -181,12 +181,12 @@ func TestSessionStore_MessageTimestamps(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
 
 	before := time.Now()
-	store.AppendMessage(1, User, "First message")
+	store.AppendMessage("timestamp-test-session", User, "First message")
 	time.Sleep(1 * time.Millisecond) // Ensure different timestamps
-	store.AppendMessage(1, Assistant, "Second message")
+	store.AppendMessage("timestamp-test-session", Assistant, "Second message")
 	after := time.Now()
 
-	messages := store.GetMessages(1)
+	messages := store.GetMessages("timestamp-test-session")
 
 	if len(messages) != 2 {
 		t.Errorf("Expected 2 messages, got %d", len(messages))
@@ -208,7 +208,7 @@ func TestSessionStore_MessageTimestamps(t *testing.T) {
 
 func TestSessionStore_LastActiveTimestamp(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
-	sessionID := uint32(1)
+	sessionID := "last-active-test-session"
 
 	store.AppendMessage(sessionID, User, "First message")
 
@@ -243,12 +243,12 @@ func TestSessionStore_CleanupIdleSessions(t *testing.T) {
 	store := NewSessionStore(2 * time.Hour)
 
 	// Create sessions with different ages
-	store.AppendMessage(1, User, "Recent message")
-	store.AppendMessage(2, User, "Old message")
+	store.AppendMessage("recent-session", User, "Recent message")
+	store.AppendMessage("old-session", User, "Old message")
 
 	// Manually set LastActive to simulate old session
 	store.mu.Lock()
-	store.sessions[2].LastActive = time.Now().UTC().Add(-3 * time.Hour) // 3 hours ago
+	store.sessions["old-session"].LastActive = time.Now().UTC().Add(-3 * time.Hour) // 3 hours ago
 	store.mu.Unlock()
 
 	// Verify both sessions exist
@@ -265,13 +265,13 @@ func TestSessionStore_CleanupIdleSessions(t *testing.T) {
 	}
 
 	// Verify the correct session remains
-	messages := store.GetMessages(1)
+	messages := store.GetMessages("recent-session")
 	if len(messages) == 0 {
 		t.Error("Recent session should still exist")
 	}
 
 	// Verify old session is gone
-	messages = store.GetMessages(2)
+	messages = store.GetMessages("old-session")
 	if len(messages) != 0 {
 		t.Error("Old session should be cleaned up")
 	}
