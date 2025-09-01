@@ -109,12 +109,12 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	if rpsStr == "" {
 		rpsStr = "10" // Default to 10 RPS
 	}
-	rpsInt, err := strconv.Atoi(rpsStr)
-	if err != nil || rpsInt <= 0 {
+	rpsFloat, err := strconv.ParseFloat(rpsStr, 64)
+	if err != nil || rpsFloat <= 0 {
 		logger.Error("invalid RATE_LIMIT_RPS value", "value", rpsStr, "error", err)
 		return cfg, fmt.Errorf("invalid RATE_LIMIT_RPS: %w", err)
 	}
-	cfg.rateLimitRPS = rate.Limit(rpsInt)
+	cfg.rateLimitRPS = rate.Limit(rpsFloat)
 
 	burstStr := os.Getenv("RATE_LIMIT_BURST")
 	if burstStr == "" {
