@@ -26,14 +26,18 @@ type config struct {
 }
 
 type application struct {
-	config       config
-	logger       *slog.Logger
-	sessionStore *SessionStore
+	config          config
+	logger          *slog.Logger
+	sessionStore    *SessionStore
+	providerFactory func(pb.Model, *slog.Logger) llm.Provider // For dependency injection in tests
 	pb.UnimplementedChatServiceServer
 }
 
 // getProvider returns the appropriate LLM provider for the requested model
 func (app *application) getProvider(model pb.Model) llm.Provider {
+	if app.providerFactory != nil {
+		return app.providerFactory(model, app.logger)
+	}
 	return llm.NewProvider(model, app.logger)
 }
 
