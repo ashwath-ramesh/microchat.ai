@@ -34,7 +34,10 @@ func NewGeminiProvider() (Provider, error) {
 
 // GenerateResponse sends the conversation history to Gemini and returns the response
 func (g *GeminiProvider) GenerateResponse(ctx context.Context, messages []Message) (string, error) {
-	model := "gemini-2.5-flash-lite"
+	model := os.Getenv("GEMINI_MODEL")
+	if model == "" {
+		model = "gemini-2.5-flash-lite" // default
+	}
 
 	// Convert our messages to Gemini format
 	var parts []*genai.Part

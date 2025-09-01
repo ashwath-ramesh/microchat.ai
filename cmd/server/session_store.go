@@ -57,14 +57,16 @@ type Session struct {
 // SessionStore provides thread-safe storage for conversation history
 // Layer 3: Session management as specified in the architecture document
 type SessionStore struct {
-	mu       sync.RWMutex
-	sessions map[uint32]*Session
+	mu          sync.RWMutex
+	sessions    map[uint32]*Session
+	idleTimeout time.Duration
 }
 
 // NewSessionStore creates a new SessionStore instance
-func NewSessionStore() *SessionStore {
+func NewSessionStore(idleTimeout time.Duration) *SessionStore {
 	return &SessionStore{
-		sessions: make(map[uint32]*Session),
+		sessions:    make(map[uint32]*Session),
+		idleTimeout: idleTimeout,
 	}
 }
 
@@ -143,12 +145,12 @@ func (s *SessionStore) GetMessagesAsLLMFormat(sessionID uint32) []llm.Message {
 	return result
 }
 
-// CleanupIdleSessions removes sessions that have been idle for more than 2 hours
+// CleanupIdleSessions removes sessions that have been idle for more than the configured timeout
 func (s *SessionStore) CleanupIdleSessions() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cutoff := time.Now().UTC().Add(-2 * time.Hour)
+	cutoff := time.Now().UTC().Add(-s.idleTimeout)
 
 	for sessionID, session := range s.sessions {
 		if session.LastActive.Before(cutoff) {

@@ -10,6 +10,9 @@ import (
 )
 
 func setupTestApp(t *testing.T) *application {
+	// Set required environment variable for testing
+	os.Setenv("CA_CERT_FILE", "certs/ca.crt")
+	
 	cfg := config{
 		serverAddr: "localhost:4000",
 		model:      pb.Model_GEMINI_2_5_FLASH_LITE,
