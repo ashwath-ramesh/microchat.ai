@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	pb "microchat.ai/proto"
@@ -35,6 +36,7 @@ type config struct {
 	sessionID     string // Server-generated UUID session ID
 	metrics       bool   // Show compact session metrics
 	metricsDetail bool   // Show detailed metrics
+	apiKey        string // API key for authentication
 }
 
 type application struct {
@@ -48,10 +50,11 @@ type application struct {
 
 // loadEnv loads environment variables from .env file
 func loadEnv(logger *slog.Logger) error {
-	// Load .env file from project root (required)
-	if err := godotenv.Load("../../.env"); err != nil {
-		logger.Error("failed to load .env file", "error", err)
-		return err
+	// Load .env file - check current directory first, then project root
+	if err := godotenv.Load(".env"); err != nil {
+		if err := godotenv.Load("../../.env"); err != nil {
+			logger.Warn("no .env file found, using environment variables only")
+		}
 	}
 	return nil
 }
@@ -71,6 +74,13 @@ func main() {
 	flag.BoolVar(&cfg.metrics, "metrics", false, "show compact session metrics")
 	flag.BoolVar(&cfg.metricsDetail, "metrics-detail", false, "show detailed message and session metrics")
 	flag.Parse()
+
+	// Get API key from environment
+	cfg.apiKey = os.Getenv("API_KEY")
+	if cfg.apiKey == "" {
+		logger.Error("API_KEY environment variable is required")
+		os.Exit(1)
+	}
 
 	// Parse model string to enum
 	cfg.model = parseModel(cfg.modelString, logger)
@@ -138,11 +148,10 @@ func (app *application) attemptConnect() error {
 		serverName = "localhost"
 	}
 
-	// Load CA certificate (required)
+	// Load CA certificate (with default)
 	caPath := os.Getenv("CA_CERT_FILE")
 	if caPath == "" {
-		app.logger.Error("CA_CERT_FILE environment variable is required")
-		return fmt.Errorf("CA_CERT_FILE environment variable is required")
+		caPath = "certs/ca.crt"
 	}
 	// Resolve path relative to project root (since client runs from cmd/client)
 	fullCaPath := "../../" + caPath
@@ -180,8 +189,14 @@ func (app *application) attemptConnect() error {
 	return nil
 }
 
+// addAuthContext adds API key to gRPC context
+func (app *application) addAuthContext(ctx context.Context) context.Context {
+	md := metadata.Pairs("authorization", "Bearer "+app.config.apiKey)
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
 func (app *application) startSession() error {
-	ctx := context.Background()
+	ctx := app.addAuthContext(context.Background())
 	req := &pb.StartSessionRequest{}
 
 	resp, err := app.grpc.StartSession(ctx, req)
@@ -249,7 +264,7 @@ func (app *application) startChat() {
 }
 
 func (app *application) sendMessage(message string) error {
-	ctx := context.Background()
+	ctx := app.addAuthContext(context.Background())
 	req := &pb.ChatRequest{
 		SessionId:    app.config.sessionID, // Server-generated UUID session ID
 		Model:        app.config.model,

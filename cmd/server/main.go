@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +31,20 @@ type config struct {
 	sessionIdleTimeout     time.Duration
 	rateLimitRPS           rate.Limit
 	rateLimitBurst         int
+	apiKeys                map[string]bool // API keys for authentication
+	dailyCallLimit         int             // Daily call limit per API key
+}
+
+// SpendingTracker tracks daily usage per API key
+type SpendingTracker struct {
+	mu    sync.RWMutex
+	usage map[string]keyUsage // API key -> usage data
+	limit int                 // Daily call limit
+}
+
+type keyUsage struct {
+	date  string // YYYY-MM-DD format
+	calls int    // Number of calls today
 }
 
 type application struct {
@@ -36,6 +52,7 @@ type application struct {
 	logger          *slog.Logger
 	sessionStore    *SessionStore
 	ipLimiter       *ratelimit.IPLimiter
+	spendingTracker *SpendingTracker
 	providerFactory func(pb.Model, *slog.Logger) llm.Provider // For dependency injection in tests
 	pb.UnimplementedChatServiceServer
 }
@@ -48,14 +65,58 @@ func (app *application) getProvider(model pb.Model) llm.Provider {
 	return llm.NewProvider(model, app.logger)
 }
 
+// NewSpendingTracker creates a new spending tracker
+func NewSpendingTracker(dailyLimit int) *SpendingTracker {
+	return &SpendingTracker{
+		usage: make(map[string]keyUsage),
+		limit: dailyLimit,
+	}
+}
+
+// CanMakeCall checks if API key can make another call today
+func (st *SpendingTracker) CanMakeCall(apiKey string) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	today := time.Now().Format("2006-01-02")
+	usage, exists := st.usage[apiKey]
+
+	if !exists || usage.date != today {
+		// New day or new key - can make call
+		return true
+	}
+
+	return usage.calls < st.limit
+}
+
+// RecordCall records a call for an API key
+func (st *SpendingTracker) RecordCall(apiKey string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	today := time.Now().Format("2006-01-02")
+	usage, exists := st.usage[apiKey]
+
+	if !exists || usage.date != today {
+		// New day or new key - reset usage
+		st.usage[apiKey] = keyUsage{date: today, calls: 1}
+		return
+	}
+
+	// Increment call count
+	usage.calls++
+	st.usage[apiKey] = usage
+}
+
 // loadConfig loads configuration from environment variables
 func loadConfig(logger *slog.Logger) (config, error) {
 	cfg := config{}
 
-	// Load .env file from project root (required)
-	if err := godotenv.Load("../../.env"); err != nil {
-		logger.Error("failed to load .env file", "error", err)
-		return cfg, fmt.Errorf("failed to load .env file: %w", err)
+	// Load .env file - check current directory first, then project root
+	if err := godotenv.Load(".env"); err != nil {
+		if err := godotenv.Load("../../.env"); err != nil {
+			logger.Warn("no .env file found, using environment variables only")
+		}
 	}
 
 	// Parse port (required)
@@ -127,6 +188,31 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.rateLimitBurst = burstInt
 
+	// Parse API keys (comma-separated)
+	apiKeysStr := os.Getenv("API_KEYS")
+	cfg.apiKeys = make(map[string]bool)
+	if apiKeysStr != "" {
+		keys := strings.Split(apiKeysStr, ",")
+		for _, key := range keys {
+			key = strings.TrimSpace(key)
+			if key != "" {
+				cfg.apiKeys[key] = true
+			}
+		}
+	}
+
+	// Parse daily call limit (with default)
+	limitStr := os.Getenv("DAILY_CALL_LIMIT")
+	if limitStr == "" {
+		limitStr = "100" // Default to 100 calls per day
+	}
+	limitInt, err := strconv.Atoi(limitStr)
+	if err != nil || limitInt <= 0 {
+		logger.Error("invalid DAILY_CALL_LIMIT value", "value", limitStr, "error", err)
+		return cfg, fmt.Errorf("invalid DAILY_CALL_LIMIT: %w", err)
+	}
+	cfg.dailyCallLimit = limitInt
+
 	return cfg, nil
 }
 
@@ -139,10 +225,11 @@ func main() {
 	}
 
 	app := &application{
-		config:       cfg,
-		logger:       logger,
-		sessionStore: NewSessionStore(cfg.sessionIdleTimeout),
-		ipLimiter:    ratelimit.NewIPLimiter(cfg.rateLimitRPS, cfg.rateLimitBurst),
+		config:          cfg,
+		logger:          logger,
+		sessionStore:    NewSessionStore(cfg.sessionIdleTimeout),
+		ipLimiter:       ratelimit.NewIPLimiter(cfg.rateLimitRPS, cfg.rateLimitBurst),
+		spendingTracker: NewSpendingTracker(cfg.dailyCallLimit),
 	}
 
 	// create gRPC server with compression and TLS
@@ -160,11 +247,14 @@ func main() {
 		logger.Error("failed to load TLS credentials", "error", err)
 		os.Exit(1)
 	}
-	
-	// Create gRPC server with rate limiting interceptor
+
+	// Create gRPC server with auth and rate limiting interceptors
 	s := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.UnaryInterceptor(RateLimitInterceptor(app.ipLimiter)),
+		grpc.ChainUnaryInterceptor(
+			AuthInterceptor(cfg.apiKeys, app.spendingTracker),
+			RateLimitInterceptor(app.ipLimiter),
+		),
 	)
 
 	// register service
@@ -216,7 +306,7 @@ func main() {
 
 	// Stop cleanup goroutine
 	close(done)
-	
+
 	// Stop rate limiter cleanup
 	app.ipLimiter.Stop()
 
