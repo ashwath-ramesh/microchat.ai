@@ -3,18 +3,32 @@ package llm
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"time"
 
 	"google.golang.org/genai"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// GeminiClient interface for testing
+type GeminiClient interface {
+	Models() GeminiModels
+}
+
+type GeminiModels interface {
+	GenerateContent(ctx context.Context, model string, content []*genai.Content, opts *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
+}
 
 // GeminiProvider implements Provider interface using Google's Gemini API
 type GeminiProvider struct {
-	client *genai.Client
+	client GeminiClient
+	logger *slog.Logger
 }
 
 // NewGeminiProvider creates a new Gemini provider
-func NewGeminiProvider() (Provider, error) {
+func NewGeminiProvider(logger *slog.Logger) (Provider, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
@@ -29,7 +43,24 @@ func NewGeminiProvider() (Provider, error) {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
-	return &GeminiProvider{client: client}, nil
+	return &GeminiProvider{client: &genaiClientWrapper{client: client}, logger: logger}, nil
+}
+
+// genaiClientWrapper adapts the real genai.Client to our interface
+type genaiClientWrapper struct {
+	client *genai.Client
+}
+
+func (w *genaiClientWrapper) Models() GeminiModels {
+	return &genaiModelsWrapper{models: w.client.Models}
+}
+
+type genaiModelsWrapper struct {
+	models *genai.Models
+}
+
+func (w *genaiModelsWrapper) GenerateContent(ctx context.Context, model string, content []*genai.Content, opts *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	return w.models.GenerateContent(ctx, model, content, opts)
 }
 
 // GenerateResponse sends the conversation history to Gemini and returns the response
@@ -47,25 +78,72 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, messages []Messag
 
 	// If no messages, return error
 	if len(parts) == 0 {
-		return "", fmt.Errorf("no messages to process")
+		return "", status.Error(codes.InvalidArgument, "no messages to process")
 	}
 
 	// Create content with parts
 	content := []*genai.Content{{Parts: parts}}
 
-	// Generate content using Gemini
-	result, err := g.client.Models.GenerateContent(ctx, model, content, nil)
-	if err != nil {
-		return "", fmt.Errorf("Gemini API error: %w", err)
+	// Retry with exponential backoff
+	var lastErr error
+	backoffDurations := []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		// Check if context is already cancelled before attempting
+		if ctx.Err() == context.Canceled {
+			return "", status.Error(codes.Canceled, "request cancelled")
+		}
+
+		if attempt > 0 {
+			g.logger.Warn("retrying Gemini API call", "attempt", attempt+1, "backoff", backoffDurations[attempt-1])
+			time.Sleep(backoffDurations[attempt-1])
+		}
+
+		// Create timeout context (30 seconds)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+
+		// Generate content using Gemini
+		result, err := g.client.Models().GenerateContent(timeoutCtx, model, content, nil)
+		cancel() // Always cancel the timeout context
+
+		if err != nil {
+			lastErr = err
+			g.logger.Warn("Gemini API call failed", "attempt", attempt+1, "error", err)
+
+			// Check if this is a timeout or context cancellation
+			if timeoutCtx.Err() == context.DeadlineExceeded {
+				lastErr = status.Error(codes.DeadlineExceeded, "Gemini API timeout")
+			} else if ctx.Err() == context.Canceled {
+				// Don't retry if the original context was cancelled
+				return "", status.Error(codes.Canceled, "request cancelled")
+			}
+
+			// Continue to next attempt
+			continue
+		}
+
+		// Extract text from response
+		text := result.Text()
+		if text == "" {
+			lastErr = fmt.Errorf("Gemini returned empty response")
+			g.logger.Warn("Gemini returned empty response", "attempt", attempt+1)
+			continue
+		}
+
+		g.logger.Info("Gemini API call successful", "attempt", attempt+1)
+		return text, nil
 	}
 
-	// Extract text from response
-	text := result.Text()
-	if text == "" {
-		return "", fmt.Errorf("Gemini returned empty response")
+	// All attempts failed
+	g.logger.Error("all Gemini API attempts failed", "error", lastErr)
+
+	// Return appropriate gRPC status code
+	if grpcStatus, ok := status.FromError(lastErr); ok {
+		return "", grpcStatus.Err()
 	}
 
-	return text, nil
+	// Default to unavailable for unknown errors
+	return "", status.Error(codes.Unavailable, fmt.Sprintf("Gemini API failed after 3 attempts: %v", lastErr))
 }
 
 // Name returns the provider name

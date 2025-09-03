@@ -15,7 +15,7 @@ func NewProvider(model pb.Model, logger *slog.Logger) Provider {
 
 	switch model {
 	case pb.Model_GEMINI_2_5_FLASH_LITE:
-		provider, err := NewGeminiProvider()
+		provider, err := NewGeminiProvider(logger)
 		if err != nil {
 			logger.Warn("failed to create Gemini provider, falling back to Echo", "error", err)
 			return NewEchoProvider()
@@ -24,7 +24,7 @@ func NewProvider(model pb.Model, logger *slog.Logger) Provider {
 	case pb.Model_ECHO:
 		if !isDev {
 			logger.Warn("Echo provider requested in production environment, falling back to Gemini", "model", model.String())
-			provider, err := NewGeminiProvider()
+			provider, err := NewGeminiProvider(logger)
 			if err != nil {
 				logger.Error("failed to create Gemini fallback provider", "error", err)
 				return NewEchoProvider() // Last resort
@@ -40,7 +40,7 @@ func NewProvider(model pb.Model, logger *slog.Logger) Provider {
 			return NewEchoProvider()
 		} else {
 			logger.Warn("unknown model in production, falling back to Gemini", "model", model.String())
-			provider, err := NewGeminiProvider()
+			provider, err := NewGeminiProvider(logger)
 			if err != nil {
 				logger.Error("failed to create Gemini fallback provider", "error", err)
 				return NewEchoProvider() // Last resort
