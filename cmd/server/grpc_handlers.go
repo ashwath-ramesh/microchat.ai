@@ -35,6 +35,10 @@ func validateMessage(message string) error {
 // StartSession creates a new session with server-generated UUID
 func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
 	sessionID := uuid.New().String()
+
+	// Register the session ID as valid
+	app.sessionStore.RegisterSession(sessionID)
+
 	app.logger.Info("created new session", "session_id", sessionID)
 
 	return &pb.StartSessionResponse{
@@ -53,6 +57,12 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	if err := validateMessage(req.Message); err != nil {
 		app.logger.Warn("invalid message", "session_id", req.SessionId, "message_len", len(req.Message), "error", err)
 		return nil, err
+	}
+
+	// Check if session ID is valid (was created via StartSession)
+	if !app.sessionStore.IsValidSession(req.SessionId) {
+		app.logger.Warn("invalid session ID", "session_id", req.SessionId, "error", "session not created via StartSession")
+		return nil, status.Error(codes.NotFound, "session not found or not properly created")
 	}
 
 	app.logger.Info("received chat request",
@@ -75,7 +85,10 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	}
 
 	// Store user message in session (Layer 2: structured format)
-	app.sessionStore.AppendMessage(req.SessionId, User, req.Message)
+	if err := app.sessionStore.AppendMessage(req.SessionId, User, req.Message); err != nil {
+		app.logger.Warn("failed to append user message", "session_id", req.SessionId, "error", err)
+		return nil, status.Errorf(codes.ResourceExhausted, "failed to store message: %v", err)
+	}
 
 	// Get LLM provider based on requested model
 	provider := app.getProvider(req.Model)
@@ -92,7 +105,10 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	}
 
 	// Store LLM response in session (Layer 2: structured format)
-	app.sessionStore.AppendMessage(req.SessionId, Assistant, reply)
+	if err := app.sessionStore.AppendMessage(req.SessionId, Assistant, reply); err != nil {
+		app.logger.Warn("failed to append assistant message", "session_id", req.SessionId, "error", err)
+		return nil, status.Errorf(codes.ResourceExhausted, "failed to store response: %v", err)
+	}
 
 	// Get updated message count after adding both messages
 	newCount := currentCount + 2 // Added user message and assistant reply

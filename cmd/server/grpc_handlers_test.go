@@ -18,7 +18,7 @@ func setupTestApplication(t *testing.T) *application {
 
 	app := &application{
 		logger:       logger,
-		sessionStore: NewSessionStore(2 * time.Hour),
+		sessionStore: NewSessionStore(2*time.Hour, 1000, 100, 100*1024),
 	}
 
 	return app
@@ -31,7 +31,7 @@ func setupTestApplicationWithMock(t *testing.T) (*application, *llm.MockProvider
 
 	app := &application{
 		logger:       logger,
-		sessionStore: NewSessionStore(2 * time.Hour),
+		sessionStore: NewSessionStore(2*time.Hour, 1000, 100, 100*1024),
 		providerFactory: func(model pb.Model, logger *slog.Logger) llm.Provider {
 			return mockProvider
 		},
@@ -46,6 +46,9 @@ func TestDeltaProtocol(t *testing.T) {
 	mockProvider.SetResponses("First response", "Second response", "Third response")
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440000" // Valid UUID
+
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
 
 	// First message: index=0, expect count=2
 	req1 := &pb.ChatRequest{
@@ -88,6 +91,9 @@ func TestDeltaProtocolWrongIndex(t *testing.T) {
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440001" // Valid UUID
 
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
+
 	// Create session
 	app.Chat(ctx, &pb.ChatRequest{
 		SessionId:    sessionID,
@@ -115,6 +121,9 @@ func TestDeltaProtocolBackwardCompatibility(t *testing.T) {
 	mockProvider.SetResponses("Backward compatibility response")
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440002" // Valid UUID
+
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
 
 	// Send without MessageIndex (defaults to 0)
 	req := &pb.ChatRequest{
@@ -192,8 +201,12 @@ func TestChatValidation(t *testing.T) {
 	app2, mockProvider := setupTestApplicationWithMock(t)
 	mockProvider.SetResponses("Valid response", "Unicode response")
 
+	// Register the session first
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	app2.sessionStore.RegisterSession(sessionID)
+
 	req = &pb.ChatRequest{
-		SessionId: "550e8400-e29b-41d4-a716-446655440000", // Valid UUID
+		SessionId: sessionID, // Valid UUID
 		Message:   "Hello, this is a valid message!",
 	}
 	_, err = app2.Chat(ctx, req)
@@ -203,7 +216,7 @@ func TestChatValidation(t *testing.T) {
 
 	// Test Unicode and special characters
 	req = &pb.ChatRequest{
-		SessionId: "550e8400-e29b-41d4-a716-446655440000", // Valid UUID
+		SessionId: sessionID, // Valid UUID
 		Message:   "Hello 世界! Special chars: @#$%^&*()_+{}|:<>?[]\\;'\",./ 🚀",
 	}
 	_, err = app2.Chat(ctx, req)
@@ -256,6 +269,9 @@ func TestChatWithMockProvider(t *testing.T) {
 	app, mockProvider := setupTestApplicationWithMock(t)
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
 
 	// Configure mock responses
 	mockProvider.SetResponses("Mocked response 1", "Mocked response 2")
@@ -314,6 +330,9 @@ func TestChatWithMockProviderError(t *testing.T) {
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
 
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
+
 	// Configure mock to return an error
 	mockProvider.SetError("Mock LLM provider timeout")
 
@@ -350,6 +369,9 @@ func TestMockedTestsRunInIsolation(t *testing.T) {
 	app, mockProvider := setupTestApplicationWithMock(t)
 	ctx := context.Background()
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+
+	// Register the session first
+	app.sessionStore.RegisterSession(sessionID)
 
 	mockProvider.SetResponses("Isolated test response")
 
