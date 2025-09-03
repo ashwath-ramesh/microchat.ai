@@ -30,16 +30,16 @@ type limitEntry struct {
 func NewIPLimiter(rps rate.Limit, burst int) *IPLimiter {
 	il := &IPLimiter{
 		limiters:        make(map[string]*limitEntry),
-		rps:            rps,
-		burst:          burst,
+		rps:             rps,
+		burst:           burst,
 		cleanupInterval: 10 * time.Minute, // Check every 10 minutes
-		expiry:         24 * time.Hour,    // Remove entries not seen for 24 hours
-		stopCleanup:    make(chan bool),
+		expiry:          24 * time.Hour,   // Remove entries not seen for 24 hours
+		stopCleanup:     make(chan bool),
 	}
-	
+
 	// Start cleanup goroutine
 	go il.cleanupWorker()
-	
+
 	return il
 }
 
@@ -47,7 +47,7 @@ func NewIPLimiter(rps rate.Limit, burst int) *IPLimiter {
 func (il *IPLimiter) Allow(ip string) bool {
 	il.mu.Lock()
 	defer il.mu.Unlock()
-	
+
 	entry, exists := il.limiters[ip]
 	if !exists {
 		// Create new limiter for this IP
@@ -60,7 +60,7 @@ func (il *IPLimiter) Allow(ip string) bool {
 		// Update last seen time
 		entry.lastSeen = time.Now()
 	}
-	
+
 	return entry.limiter.Allow()
 }
 
@@ -68,7 +68,7 @@ func (il *IPLimiter) Allow(ip string) bool {
 func (il *IPLimiter) cleanupWorker() {
 	ticker := time.NewTicker(il.cleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -83,7 +83,7 @@ func (il *IPLimiter) cleanupWorker() {
 func (il *IPLimiter) cleanup() {
 	il.mu.Lock()
 	defer il.mu.Unlock()
-	
+
 	now := time.Now()
 	for ip, entry := range il.limiters {
 		if now.Sub(entry.lastSeen) > il.expiry {
@@ -118,7 +118,7 @@ func ExtractIP(remoteAddr string, forwardedFor string) string {
 			}
 		}
 	}
-	
+
 	// Fall back to remote address
 	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {

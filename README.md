@@ -37,7 +37,7 @@ This system minimizes data collection while maintaining practical functionality:
 
 **What we track:**
 
-- **IP addresses**: Used for rate limiting
+- **API keys**: Used for authentication and rate limiting per user
 - **Session IDs**: Random identifiers for session request correlation
 - **Bandwidth metrics**: Request/response sizes for system monitoring
 - **Conversation history**: Messages stored in memory with structured metadata
@@ -45,7 +45,7 @@ to maintain conversation context and enable bandwidth optimization
 
 **What we DON'T store:**
 
-- **User identities**: No authentication, accounts, or tracking
+- **User identities**: No persistent accounts or personal data tracking
 - **Persistent chat history**: Sessions are ephemeral - all conversation data is held only in RAM
 - **Message logs**: Server logs contain operational metadata but never actual message content
 
@@ -60,41 +60,68 @@ to maintain conversation context and enable bandwidth optimization
 **Important limitations:**
 
 - Your messages ARE sent to LLM providers with their own data policies
-- IP-based rate limiting means shared networks (offices, cafes) share limits
+- API key-based rate limiting provides per-user limits
 - Conversation history persists in server memory during active sessions for context and optimization
 - All data is ephemeral but may remain in memory until session cleanup occurs
 
-Never send passwords, API keys, or other sensitive information through any chat system.
+Never send passwords, personal API keys, or other sensitive information through any chat system.
 
-## Usage Limits
+## Authentication
 
-To keep this service free for everyone, I have to currently pay for the
-server and LLM calls myself. To prevent abuse, I've set reasonable
-rate limits on the public proxy. These limits should be more than
-enough for normal conversations.
+The server now requires API key authentication for all endpoints except health checks.
+
+### Server Setup
+
+Configure API keys in the server environment:
+
+```bash
+# Server .env
+API_KEYS=key1,key2,key3
+DAILY_CALL_LIMIT=100
+GEMINI_API_KEY=your_gemini_key
+```
+
+### Client Setup
+
+Configure your API key in the client environment:
+
+```bash
+# Client .env  
+API_KEY=key1
+```
 
 ## Quick Start
 
-**Development (no API key needed):**
+**Development (requires API key):**
 
 ```bash
 git clone <repo> && cd microchat.ai
 ./certs/generate-certs.sh
 cp .env.example .env
+# Edit .env to add API_KEYS for server and API_KEY for client
 make dev-server        # Terminal 1
 make dev-client-echo    # Terminal 2
 ```
 
-**Production (requires Gemini API key):**
+**Production (requires API keys + Gemini API key):**
 
-1. Get API key: <https://ai.google.dev/gemini-api/docs/api-key>
-2. Add to `.env`: `GEMINI_API_KEY=your_key_here`  
-3. Run: `make prod-server` and `make prod-client-gemini`
+1. Get Gemini API key: <https://ai.google.dev/gemini-api/docs/api-key>
+2. Generate your authentication API keys
+3. Add to server `.env`: `API_KEYS=key1,key2`, `DAILY_CALL_LIMIT=100`, and `GEMINI_API_KEY=your_key_here`
+4. Add to client `.env`: `API_KEY=key1`
+5. Run: `make prod-server` and `make prod-client-gemini`
 
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure:
 
+**Server:**
+- `API_KEYS` - Comma-separated list of valid API keys (required)
+- `DAILY_CALL_LIMIT` - Daily call limit per API key (default: 100)
 - `GEMINI_API_KEY` - Your Gemini API key (production only)
-- `APP_ENV=development` - Enables Echo provider (no API key needed)
+- `APP_ENV=development` - Enables Echo provider
+- Certificate paths - Use defaults for development
+
+**Client:**  
+- `API_KEY` - Your API key for server authentication (required)
 - Certificate paths - Use defaults for development
