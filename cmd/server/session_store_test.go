@@ -9,10 +9,16 @@ import (
 )
 
 func TestSessionStore_AppendMessage(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
+
+	// Register a valid session ID first
+	store.RegisterSession("test-session-1")
 
 	// Test appending to new session
-	store.AppendMessage("test-session-1", User, "Hello")
+	err := store.AppendMessage("test-session-1", User, "Hello")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 	messages := store.GetMessages("test-session-1")
 
 	if len(messages) != 1 {
@@ -28,7 +34,10 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 	}
 
 	// Test appending to existing session
-	store.AppendMessage("test-session-1", Assistant, "Hello")
+	err = store.AppendMessage("test-session-1", Assistant, "Hello")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 	messages = store.GetMessages("test-session-1")
 
 	if len(messages) != 2 {
@@ -47,10 +56,16 @@ func TestSessionStore_AppendMessage(t *testing.T) {
 			t.Errorf("Message '%s' doesn't match expected pattern '%s'", msg, expected[i])
 		}
 	}
+
+	// Test invalid session ID (not registered)
+	err = store.AppendMessage("invalid-session", User, "Should fail")
+	if err == nil {
+		t.Errorf("Expected error for invalid session ID, but got nil")
+	}
 }
 
 func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 
 	messages := store.GetMessages("nonexistent-session")
 	if len(messages) != 0 {
@@ -65,8 +80,12 @@ func TestSessionStore_GetMessages_NonExistent(t *testing.T) {
 }
 
 func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
-	store.AppendMessage("test-session-1", User, "test message")
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
+	store.RegisterSession("test-session-1")
+	err := store.AppendMessage("test-session-1", User, "test message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	messages1 := store.GetMessages("test-session-1")
 	messages2 := store.GetMessages("test-session-1")
@@ -81,9 +100,10 @@ func TestSessionStore_GetMessages_ReturnsCopy(t *testing.T) {
 }
 
 func TestSessionStore_ConcurrentAccess(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 	var wg sync.WaitGroup
 	sessionID := "concurrent-test-session"
+	store.RegisterSession(sessionID)
 
 	// Start multiple goroutines appending messages
 	numGoroutines := 10
@@ -112,7 +132,7 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 }
 
 func TestSessionStore_GetSessionCount(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 
 	// Initially empty
 	if count := store.GetSessionCount(); count != 0 {
@@ -120,9 +140,20 @@ func TestSessionStore_GetSessionCount(t *testing.T) {
 	}
 
 	// Add messages to different sessions
-	store.AppendMessage("session-1", User, "message 1")
-	store.AppendMessage("session-2", User, "message 2")
-	store.AppendMessage("session-1", Assistant, "message 3") // Same session
+	store.RegisterSession("session-1")
+	store.RegisterSession("session-2")
+	err := store.AppendMessage("session-1", User, "message 1")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	err = store.AppendMessage("session-2", User, "message 2")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	err = store.AppendMessage("session-1", Assistant, "message 3") // Same session
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	if count := store.GetSessionCount(); count != 2 {
 		t.Errorf("Expected 2 sessions, got %d", count)
@@ -178,12 +209,19 @@ func TestRole_String(t *testing.T) {
 }
 
 func TestSessionStore_MessageTimestamps(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 
+	store.RegisterSession("timestamp-test-session")
 	before := time.Now()
-	store.AppendMessage("timestamp-test-session", User, "First message")
+	err := store.AppendMessage("timestamp-test-session", User, "First message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 	time.Sleep(1 * time.Millisecond) // Ensure different timestamps
-	store.AppendMessage("timestamp-test-session", Assistant, "Second message")
+	err = store.AppendMessage("timestamp-test-session", Assistant, "Second message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 	after := time.Now()
 
 	messages := store.GetMessages("timestamp-test-session")
@@ -207,17 +245,24 @@ func TestSessionStore_MessageTimestamps(t *testing.T) {
 }
 
 func TestSessionStore_LastActiveTimestamp(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 	sessionID := "last-active-test-session"
 
-	store.AppendMessage(sessionID, User, "First message")
+	store.RegisterSession(sessionID)
+	err := store.AppendMessage(sessionID, User, "First message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	// Sleep to ensure different timestamps
 	time.Sleep(10 * time.Millisecond)
 
 	// Record time before second message
 	middle := time.Now().UTC()
-	store.AppendMessage(sessionID, Assistant, "Second message")
+	err = store.AppendMessage(sessionID, Assistant, "Second message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 	after := time.Now().UTC()
 
 	// Access session directly to check LastActive
@@ -240,11 +285,19 @@ func TestSessionStore_LastActiveTimestamp(t *testing.T) {
 }
 
 func TestSessionStore_CleanupIdleSessions(t *testing.T) {
-	store := NewSessionStore(2 * time.Hour)
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
 
 	// Create sessions with different ages
-	store.AppendMessage("recent-session", User, "Recent message")
-	store.AppendMessage("old-session", User, "Old message")
+	store.RegisterSession("recent-session")
+	store.RegisterSession("old-session")
+	err := store.AppendMessage("recent-session", User, "Recent message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	err = store.AppendMessage("old-session", User, "Old message")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	// Manually set LastActive to simulate old session
 	store.mu.Lock()
@@ -274,5 +327,110 @@ func TestSessionStore_CleanupIdleSessions(t *testing.T) {
 	messages = store.GetMessages("old-session")
 	if len(messages) != 0 {
 		t.Error("Old session should be cleaned up")
+	}
+}
+
+// New tests for session limits functionality
+
+func TestSessionStore_SessionValidation(t *testing.T) {
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100*1024)
+
+	// Test invalid session (not registered)
+	err := store.AppendMessage("invalid-session", User, "Should fail")
+	if err == nil {
+		t.Error("Expected error for invalid session ID")
+	}
+
+	// Test valid session
+	store.RegisterSession("valid-session")
+	err = store.AppendMessage("valid-session", User, "Should work")
+	if err != nil {
+		t.Errorf("Unexpected error for valid session: %v", err)
+	}
+}
+
+func TestSessionStore_MessageLimits(t *testing.T) {
+	store := NewSessionStore(2*time.Hour, 1000, 3, 100*1024) // Max 3 messages per session
+
+	store.RegisterSession("test-session")
+
+	// Should allow up to 3 messages
+	for i := 0; i < 3; i++ {
+		err := store.AppendMessage("test-session", User, fmt.Sprintf("Message %d", i+1))
+		if err != nil {
+			t.Errorf("Unexpected error for message %d: %v", i+1, err)
+		}
+	}
+
+	// 4th message should fail
+	err := store.AppendMessage("test-session", User, "Should fail")
+	if err == nil {
+		t.Error("Expected error for exceeding message limit")
+	}
+}
+
+func TestSessionStore_SessionSizeLimits(t *testing.T) {
+	store := NewSessionStore(2*time.Hour, 1000, 100, 100) // Max 100 bytes per session
+
+	store.RegisterSession("test-session")
+
+	// Add a large message that exceeds size limit
+	largeMessage := make([]byte, 200)
+	for i := range largeMessage {
+		largeMessage[i] = 'A'
+	}
+
+	err := store.AppendMessage("test-session", User, string(largeMessage))
+	if err == nil {
+		t.Error("Expected error for exceeding session size limit")
+	}
+}
+
+func TestSessionStore_MaxSessionsWithEviction(t *testing.T) {
+	store := NewSessionStore(2*time.Hour, 2, 100, 100*1024) // Max 2 sessions
+
+	// Create first two sessions
+	store.RegisterSession("session-1")
+	store.RegisterSession("session-2")
+
+	err := store.AppendMessage("session-1", User, "Message 1")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	err = store.AppendMessage("session-2", User, "Message 2")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if count := store.GetSessionCount(); count != 2 {
+		t.Errorf("Expected 2 sessions, got %d", count)
+	}
+
+	// Create third session - should evict oldest
+	store.RegisterSession("session-3")
+	err = store.AppendMessage("session-3", User, "Message 3")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Should still have 2 sessions but session-1 should be evicted
+	if count := store.GetSessionCount(); count != 2 {
+		t.Errorf("Expected 2 sessions after eviction, got %d", count)
+	}
+
+	// session-1 should be gone
+	messages := store.GetMessages("session-1")
+	if len(messages) != 0 {
+		t.Error("session-1 should have been evicted")
+	}
+
+	// session-2 and session-3 should still exist
+	messages = store.GetMessages("session-2")
+	if len(messages) == 0 {
+		t.Error("session-2 should still exist")
+	}
+	messages = store.GetMessages("session-3")
+	if len(messages) == 0 {
+		t.Error("session-3 should still exist")
 	}
 }

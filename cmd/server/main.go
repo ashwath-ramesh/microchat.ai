@@ -33,6 +33,9 @@ type config struct {
 	rateLimitBurst         int
 	apiKeys                map[string]bool // API keys for authentication
 	dailyCallLimit         int             // Daily call limit per API key
+	maxSessions            int             // Maximum number of concurrent sessions
+	maxMessagesPerSession  int             // Maximum messages per session
+	maxSessionSizeBytes    int             // Maximum memory per session in bytes
 }
 
 // SpendingTracker tracks daily usage per API key
@@ -213,6 +216,40 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.dailyCallLimit = limitInt
 
+	// Parse session limits (with defaults)
+	maxSessionsStr := os.Getenv("MAX_SESSIONS")
+	if maxSessionsStr == "" {
+		maxSessionsStr = "1000" // Default to 1000 sessions
+	}
+	maxSessionsInt, err := strconv.Atoi(maxSessionsStr)
+	if err != nil || maxSessionsInt <= 0 {
+		logger.Error("invalid MAX_SESSIONS value", "value", maxSessionsStr, "error", err)
+		return cfg, fmt.Errorf("invalid MAX_SESSIONS: %w", err)
+	}
+	cfg.maxSessions = maxSessionsInt
+
+	maxMessagesStr := os.Getenv("MAX_MESSAGES_PER_SESSION")
+	if maxMessagesStr == "" {
+		maxMessagesStr = "100" // Default to 100 messages per session
+	}
+	maxMessagesInt, err := strconv.Atoi(maxMessagesStr)
+	if err != nil || maxMessagesInt <= 0 {
+		logger.Error("invalid MAX_MESSAGES_PER_SESSION value", "value", maxMessagesStr, "error", err)
+		return cfg, fmt.Errorf("invalid MAX_MESSAGES_PER_SESSION: %w", err)
+	}
+	cfg.maxMessagesPerSession = maxMessagesInt
+
+	maxSizeStr := os.Getenv("MAX_SESSION_SIZE_KB")
+	if maxSizeStr == "" {
+		maxSizeStr = "100" // Default to 100KB per session
+	}
+	maxSizeInt, err := strconv.Atoi(maxSizeStr)
+	if err != nil || maxSizeInt <= 0 {
+		logger.Error("invalid MAX_SESSION_SIZE_KB value", "value", maxSizeStr, "error", err)
+		return cfg, fmt.Errorf("invalid MAX_SESSION_SIZE_KB: %w", err)
+	}
+	cfg.maxSessionSizeBytes = maxSizeInt * 1024 // Convert KB to bytes
+
 	return cfg, nil
 }
 
@@ -227,7 +264,7 @@ func main() {
 	app := &application{
 		config:          cfg,
 		logger:          logger,
-		sessionStore:    NewSessionStore(cfg.sessionIdleTimeout),
+		sessionStore:    NewSessionStore(cfg.sessionIdleTimeout, cfg.maxSessions, cfg.maxMessagesPerSession, cfg.maxSessionSizeBytes),
 		ipLimiter:       ratelimit.NewIPLimiter(cfg.rateLimitRPS, cfg.rateLimitBurst),
 		spendingTracker: NewSpendingTracker(cfg.dailyCallLimit),
 	}

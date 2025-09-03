@@ -57,43 +57,133 @@ type Session struct {
 // SessionStore provides thread-safe storage for conversation history
 // Layer 3: Session management as specified in the architecture document
 type SessionStore struct {
-	mu          sync.RWMutex
-	sessions    map[string]*Session
-	idleTimeout time.Duration
+	mu                    sync.RWMutex
+	sessions              map[string]*Session
+	validSessions         map[string]bool // Track sessions created via StartSession
+	idleTimeout           time.Duration
+	maxSessions           int
+	maxMessagesPerSession int
+	maxSessionSizeBytes   int
+	sessionOrder          []string // For LRU eviction
 }
 
 // NewSessionStore creates a new SessionStore instance
-func NewSessionStore(idleTimeout time.Duration) *SessionStore {
+func NewSessionStore(idleTimeout time.Duration, maxSessions, maxMessagesPerSession, maxSessionSizeBytes int) *SessionStore {
 	return &SessionStore{
-		sessions:    make(map[string]*Session),
-		idleTimeout: idleTimeout,
+		sessions:              make(map[string]*Session),
+		validSessions:         make(map[string]bool),
+		idleTimeout:           idleTimeout,
+		maxSessions:           maxSessions,
+		maxMessagesPerSession: maxMessagesPerSession,
+		maxSessionSizeBytes:   maxSessionSizeBytes,
+		sessionOrder:          make([]string, 0),
 	}
 }
 
+// RegisterSession registers a session ID as valid (created via StartSession)
+func (s *SessionStore) RegisterSession(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.validSessions[sessionID] = true
+}
+
+// IsValidSession checks if a session ID was created via StartSession
+func (s *SessionStore) IsValidSession(sessionID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.validSessions[sessionID]
+}
+
+// getSessionSize calculates the memory usage of a session in bytes
+func (s *SessionStore) getSessionSize(session *Session) int {
+	size := 0
+	for _, msg := range session.Messages {
+		size += len(msg.Text) + len(msg.Role.String()) + 24 // approximate timestamp size
+	}
+	return size
+}
+
+// evictOldestSession removes the oldest session to make room for new ones
+func (s *SessionStore) evictOldestSession() {
+	if len(s.sessionOrder) == 0 {
+		return
+	}
+
+	oldestSessionID := s.sessionOrder[0]
+	s.sessionOrder = s.sessionOrder[1:]
+
+	delete(s.sessions, oldestSessionID)
+	delete(s.validSessions, oldestSessionID)
+}
+
+// updateSessionOrder moves a session to the end (most recently used)
+func (s *SessionStore) updateSessionOrder(sessionID string) {
+	// Remove from current position
+	for i, id := range s.sessionOrder {
+		if id == sessionID {
+			s.sessionOrder = append(s.sessionOrder[:i], s.sessionOrder[i+1:]...)
+			break
+		}
+	}
+	// Add to end
+	s.sessionOrder = append(s.sessionOrder, sessionID)
+}
+
 // AppendMessage adds a structured message to the session history
-// Creates session if it doesn't exist
-func (s *SessionStore) AppendMessage(sessionID string, role Role, text string) {
+// Only works with valid session IDs and enforces limits
+func (s *SessionStore) AppendMessage(sessionID string, role Role, text string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Check if session ID is valid (was created via StartSession)
+	if !s.validSessions[sessionID] {
+		return fmt.Errorf("invalid session ID: session not found or not properly created")
+	}
+
 	now := time.Now().UTC()
 
+	// Create session if it doesn't exist
 	if s.sessions[sessionID] == nil {
+		// Check if we need to evict sessions to stay under the limit
+		for len(s.sessions) >= s.maxSessions {
+			s.evictOldestSession()
+		}
+
 		s.sessions[sessionID] = &Session{
 			Messages:   make([]Message, 0),
 			LastActive: now,
 		}
+		s.sessionOrder = append(s.sessionOrder, sessionID)
 	}
 
+	session := s.sessions[sessionID]
+
+	// Check message limit per session
+	if len(session.Messages) >= s.maxMessagesPerSession {
+		return fmt.Errorf("session message limit exceeded: maximum %d messages per session", s.maxMessagesPerSession)
+	}
+
+	// Create new message
 	message := Message{
 		Role:      role,
 		Text:      text,
 		Timestamp: now,
 	}
 
-	session := s.sessions[sessionID]
+	// Check session size limit
+	newSessionSize := s.getSessionSize(session) + len(text) + len(role.String()) + 24
+	if newSessionSize > s.maxSessionSizeBytes {
+		return fmt.Errorf("session size limit exceeded: maximum %d bytes per session", s.maxSessionSizeBytes)
+	}
+
+	// Add message to session
 	session.Messages = append(session.Messages, message)
 	session.LastActive = now
+
+	// Update LRU order
+	s.updateSessionOrder(sessionID)
+
+	return nil
 }
 
 // GetMessages returns all structured messages for a session
@@ -151,10 +241,25 @@ func (s *SessionStore) CleanupIdleSessions() {
 	defer s.mu.Unlock()
 
 	cutoff := time.Now().UTC().Add(-s.idleTimeout)
+	toDelete := make([]string, 0)
 
 	for sessionID, session := range s.sessions {
 		if session.LastActive.Before(cutoff) {
-			delete(s.sessions, sessionID)
+			toDelete = append(toDelete, sessionID)
+		}
+	}
+
+	// Remove from all tracking structures
+	for _, sessionID := range toDelete {
+		delete(s.sessions, sessionID)
+		delete(s.validSessions, sessionID)
+
+		// Remove from session order
+		for i, id := range s.sessionOrder {
+			if id == sessionID {
+				s.sessionOrder = append(s.sessionOrder[:i], s.sessionOrder[i+1:]...)
+				break
+			}
 		}
 	}
 }
