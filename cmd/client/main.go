@@ -10,8 +10,10 @@ import (
 	"io/ioutil"
 	"log/slog"
 	"math"
+	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -76,9 +78,9 @@ func main() {
 	flag.Parse()
 
 	// Get API key from environment
-	cfg.apiKey = os.Getenv("API_KEY")
+	cfg.apiKey = os.Getenv("MICROCHAT_API_KEY")
 	if cfg.apiKey == "" {
-		logger.Error("API_KEY environment variable is required")
+		logger.Error("MICROCHAT_API_KEY environment variable is required")
 		os.Exit(1)
 	}
 
@@ -121,6 +123,23 @@ func parseModel(modelStr string, logger *slog.Logger) pb.Model {
 	}
 }
 
+// isProductionServer determines if the server address is a production domain
+func isProductionServer(serverAddr string) bool {
+	host, _, err := net.SplitHostPort(serverAddr)
+	if err != nil {
+		// If we can't parse the address, assume development
+		return false
+	}
+
+	// Check if it's localhost, 127.0.0.1, or similar development addresses
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return false
+	}
+
+	// If it contains a dot and isn't an IP address, it's likely a production domain
+	return strings.Contains(host, ".") && net.ParseIP(host) == nil
+}
+
 func (app *application) connect() error {
 	const maxRetries = 3
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -143,34 +162,74 @@ func (app *application) connect() error {
 }
 
 func (app *application) attemptConnect() error {
-	serverName := os.Getenv("SERVER_NAME")
-	if serverName == "" {
-		serverName = "localhost"
-	}
+	isProduction := isProductionServer(app.config.serverAddr)
 
-	// Load CA certificate (with default)
-	caPath := os.Getenv("CA_CERT_FILE")
-	if caPath == "" {
-		caPath = "certs/ca.crt"
-	}
-	// Resolve path relative to project root (since client runs from cmd/client)
-	fullCaPath := "../../" + caPath
-	caCert, err := ioutil.ReadFile(fullCaPath)
-	if err != nil {
-		app.logger.Error("failed to read CA certificate", "path", fullCaPath, "error", err)
-		return fmt.Errorf("failed to read CA certificate from %s: %v", fullCaPath, err)
-	}
+	var creds credentials.TransportCredentials
 
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		app.logger.Error("failed to append CA certificate", "path", fullCaPath)
-		return fmt.Errorf("failed to append CA certificate")
-	}
+	if isProduction {
+		// Production: Use system CA certificates for valid certificates
+		host, _, err := net.SplitHostPort(app.config.serverAddr)
+		if err != nil {
+			return fmt.Errorf("failed to parse server address: %v", err)
+		}
 
-	creds := credentials.NewTLS(&tls.Config{
-		ServerName: serverName,
-		RootCAs:    caCertPool,
-	})
+		creds = credentials.NewTLS(&tls.Config{
+			ServerName: host,
+		})
+		app.logger.Info("using system CA certificates for production server", "host", host)
+	} else {
+		// Development: Use self-signed certificates
+		serverName := os.Getenv("SERVER_NAME")
+		if serverName == "" {
+			serverName = "localhost"
+		}
+
+		// Load CA certificate (with default)
+		caPath := os.Getenv("CA_CERT_FILE")
+		if caPath == "" {
+			caPath = "certs/ca.crt"
+		}
+
+		// Try multiple possible locations for the certificate
+		var fullCaPath string
+		var caCert []byte
+		var err error
+
+		// First try relative to current working directory
+		if _, err := os.Stat(caPath); err == nil {
+			fullCaPath = caPath
+			caCert, err = ioutil.ReadFile(fullCaPath)
+		} else {
+			// Try relative to project root (backwards compatibility)
+			fullCaPath = "../../" + caPath
+			caCert, err = ioutil.ReadFile(fullCaPath)
+			if err != nil {
+				// Try absolute path based on executable location
+				if execPath, execErr := os.Executable(); execErr == nil {
+					execDir := filepath.Dir(execPath)
+					fullCaPath = filepath.Join(execDir, caPath)
+					caCert, err = ioutil.ReadFile(fullCaPath)
+				}
+			}
+		}
+
+		if err != nil {
+			app.logger.Error("failed to read CA certificate", "path", fullCaPath, "error", err)
+			return fmt.Errorf("failed to read CA certificate from %s: %v", fullCaPath, err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			app.logger.Error("failed to append CA certificate", "path", fullCaPath)
+			return fmt.Errorf("failed to append CA certificate")
+		}
+
+		creds = credentials.NewTLS(&tls.Config{
+			ServerName: serverName,
+			RootCAs:    caCertPool,
+		})
+		app.logger.Info("using self-signed CA certificate for development server", "path", fullCaPath, "server_name", serverName)
+	}
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(creds),
