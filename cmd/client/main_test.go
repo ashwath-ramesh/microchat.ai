@@ -18,13 +18,12 @@ func generateSessionID() string {
 func setupTestApp(t *testing.T) *application {
 	// Set required environment variables for testing
 	os.Setenv("CA_CERT_FILE", "certs/ca.crt")
-	os.Setenv("API_KEY", "test-key")
+	os.Setenv("MICROCHAT_API_KEY", "test-key")
 
 	cfg := config{
 		serverAddr: "localhost:4000",
 		model:      pb.Model_GEMINI_2_5_FLASH_LITE,
-		sessionID:  generateSessionID(),
-		apiKey:     os.Getenv("API_KEY"), // Get API key from environment
+		apiKey:     os.Getenv("MICROCHAT_API_KEY"), // Get API key from environment
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -36,6 +35,11 @@ func setupTestApp(t *testing.T) *application {
 
 	if err := app.connect(); err != nil {
 		t.Fatalf("Failed to connect to server: %v", err)
+	}
+
+	// Start session to get server-generated session ID (like main() does)
+	if err := app.startSession(); err != nil {
+		t.Fatalf("Failed to start session: %v", err)
 	}
 
 	return app
@@ -89,7 +93,7 @@ func TestChatMessage(t *testing.T) {
 // Layer 4: Happy path - message index tracking
 func TestMessageIndexTracking(t *testing.T) {
 	// Use different API key for this test to avoid rate limiting
-	os.Setenv("API_KEY", "test-key-2")
+	os.Setenv("MICROCHAT_API_KEY", "test-key-2")
 	app := setupTestApp(t)
 	defer app.conn.Close()
 
@@ -139,16 +143,16 @@ func TestMessageIndexTracking(t *testing.T) {
 // Edge cases: wrong index and backward compatibility
 func TestDeltaProtocolEdgeCases(t *testing.T) {
 	// Use different API key for this test to avoid rate limiting
-	os.Setenv("API_KEY", "test-key-3")
+	os.Setenv("MICROCHAT_API_KEY", "test-key-3")
 	app := setupTestApp(t)
 	defer app.conn.Close()
 
 	ctx := app.addAuthContext(context.Background())
 
 	// Edge case 1: Wrong index (should still work)
-	sessionID1 := generateSessionID()
+	// Use the app's session ID (already started in setupTestApp)
 	_, err := app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId:    sessionID1,
+		SessionId:    app.config.sessionID,
 		Message:      "First",
 		MessageIndex: 0,
 	})
@@ -157,7 +161,7 @@ func TestDeltaProtocolEdgeCases(t *testing.T) {
 	}
 
 	resp, err := app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId:    sessionID1,
+		SessionId:    app.config.sessionID,
 		Message:      "Wrong index",
 		MessageIndex: 10, // Wrong: should be 2
 	})
@@ -169,9 +173,12 @@ func TestDeltaProtocolEdgeCases(t *testing.T) {
 	}
 
 	// Edge case 2: No index field (backward compatibility)
-	sessionID2 := generateSessionID()
-	resp2, err := app.grpc.Chat(ctx, &pb.ChatRequest{
-		SessionId: sessionID2,
+	// Create new app instance for fresh session
+	app2 := setupTestApp(t)
+	defer app2.conn.Close()
+
+	resp2, err := app2.grpc.Chat(ctx, &pb.ChatRequest{
+		SessionId: app2.config.sessionID,
 		Message:   "No index",
 		// MessageIndex omitted
 	})
