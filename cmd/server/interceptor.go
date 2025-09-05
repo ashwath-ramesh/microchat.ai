@@ -20,7 +20,7 @@ type SpendingLimiter interface {
 }
 
 // AuthInterceptor creates a gRPC unary server interceptor for API key authentication
-func AuthInterceptor(apiKeys map[string]bool, spendingTracker SpendingLimiter) grpc.UnaryServerInterceptor {
+func AuthInterceptor(apiKeys map[string]string, spendingTracker SpendingLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		// Skip auth for Health endpoint only
 		if info.FullMethod == "/chat.ChatService/Health" {
@@ -51,8 +51,14 @@ func AuthInterceptor(apiKeys map[string]bool, spendingTracker SpendingLimiter) g
 
 		// Extract and validate API key
 		apiKey := strings.TrimPrefix(token, "Bearer ")
-		if !apiKeys[apiKey] {
+		role, exists := apiKeys[apiKey]
+		if !exists {
 			return nil, status.Error(codes.Unauthenticated, "invalid API key")
+		}
+
+		// Check if admin endpoint requires admin role
+		if info.FullMethod == "/chat.ChatService/GetMetrics" && role != "admin" {
+			return nil, status.Error(codes.PermissionDenied, "admin access required")
 		}
 
 		// Check daily spending limit
@@ -63,8 +69,9 @@ func AuthInterceptor(apiKeys map[string]bool, spendingTracker SpendingLimiter) g
 		// Record this call
 		spendingTracker.RecordCall(apiKey)
 
-		// Add API key to context for rate limiting
+		// Add API key and role to context
 		ctx = context.WithValue(ctx, "api_key", apiKey)
+		ctx = context.WithValue(ctx, "user_role", role)
 
 		// Continue with the request
 		return handler(ctx, req)

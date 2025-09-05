@@ -144,3 +144,72 @@ func (app *application) GetHistory(ctx context.Context, req *pb.GetHistoryReques
 
 	return resp, nil
 }
+
+func (app *application) GetMetrics(ctx context.Context, req *pb.MetricsRequest) (*pb.MetricsResponse, error) {
+	app.logger.Info("received get metrics request")
+
+	// Get session metrics
+	activeSessions := int32(app.sessionStore.GetSessionCount())
+	totalSessions := app.sessionStore.GetTotalSessionsCreated()
+
+	// Get detailed session info
+	sessionsInfo := app.sessionStore.GetAllSessionsInfo()
+	pbSessions := make([]*pb.SessionInfo, len(sessionsInfo))
+	for i, info := range sessionsInfo {
+		pbSessions[i] = &pb.SessionInfo{
+			SessionId:    info.ID,
+			MessageCount: int32(info.MessageCount),
+			SizeBytes:    int32(info.SizeBytes),
+			LastActive:   info.LastActive,
+		}
+	}
+
+	// Get aggregated API usage stats
+	app.spendingTracker.mu.RLock()
+	totalApiKeys := int32(len(app.config.apiKeys))
+	totalCallsToday := int32(0)
+	keysOverLimit := int32(0)
+
+	for _, usage := range app.spendingTracker.usage {
+		totalCallsToday += int32(usage.calls)
+		if usage.calls >= app.spendingTracker.limit {
+			keysOverLimit++
+		}
+	}
+
+	var averageCallsPerKey int32 = 0
+	if totalApiKeys > 0 {
+		averageCallsPerKey = totalCallsToday / totalApiKeys
+	}
+
+	apiUsageStats := &pb.ApiUsageStats{
+		TotalApiKeys:       totalApiKeys,
+		TotalCallsToday:    totalCallsToday,
+		AverageCallsPerKey: averageCallsPerKey,
+		KeysOverLimit:      keysOverLimit,
+		DailyLimit:         int32(app.spendingTracker.limit),
+	}
+	app.spendingTracker.mu.RUnlock()
+
+	// Get server configuration limits
+	serverLimits := &pb.ServerLimits{
+		SessionCleanupInterval: app.config.sessionCleanupInterval.String(),
+		SessionIdleTimeout:     app.config.sessionIdleTimeout.String(),
+		MaxSessions:            int32(app.config.maxSessions),
+		MaxMessagesPerSession:  int32(app.config.maxMessagesPerSession),
+		MaxSessionSizeKb:       int32(app.config.maxSessionSizeBytes / 1024),
+		RateLimitRps:           float32(app.config.rateLimitRPS),
+		RateLimitBurst:         int32(app.config.rateLimitBurst),
+		DailyCallLimit:         int32(app.config.dailyCallLimit),
+	}
+
+	resp := &pb.MetricsResponse{
+		ActiveSessions:       activeSessions,
+		TotalSessionsCreated: totalSessions,
+		Sessions:             pbSessions,
+		ApiUsageStats:        apiUsageStats,
+		ServerLimits:         serverLimits,
+	}
+
+	return resp, nil
+}

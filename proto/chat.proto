@@ -8,6 +8,7 @@ service ChatService {
     rpc Chat(ChatRequest) returns (ChatResponse);
     rpc Health(HealthRequest) returns (HealthResponse);
     rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+    rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
 }
 
 message StartSessionRequest {}
@@ -42,6 +43,42 @@ message GetHistoryRequest {
 message GetHistoryResponse {
   string session_id = 1;  // Session ID
   repeated string messages = 2;  // All messages in session
+}
+
+message MetricsRequest {}
+
+message MetricsResponse {
+  int32 active_sessions = 1;
+  int64 total_sessions_created = 2;
+  repeated SessionInfo sessions = 3;
+  ApiUsageStats api_usage_stats = 4;
+  ServerLimits server_limits = 5;
+}
+
+message SessionInfo {
+  string session_id = 1;
+  int32 message_count = 2;
+  int32 size_bytes = 3;
+  string last_active = 4;
+}
+
+message ApiUsageStats {
+  int32 total_api_keys = 1;
+  int32 total_calls_today = 2;
+  int32 average_calls_per_key = 3;
+  int32 keys_over_limit = 4;
+  int32 daily_limit = 5;
+}
+
+message ServerLimits {
+  string session_cleanup_interval = 1;
+  string session_idle_timeout = 2;
+  int32 max_sessions = 3;
+  int32 max_messages_per_session = 4;
+  int32 max_session_size_kb = 5;
+  float rate_limit_rps = 6;
+  int32 rate_limit_burst = 7;
+  int32 daily_call_limit = 8;
 }
 
 enum Model {

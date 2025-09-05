@@ -31,11 +31,11 @@ type config struct {
 	sessionIdleTimeout     time.Duration
 	rateLimitRPS           rate.Limit
 	rateLimitBurst         int
-	apiKeys                map[string]bool // API keys for authentication
-	dailyCallLimit         int             // Daily call limit per API key
-	maxSessions            int             // Maximum number of concurrent sessions
-	maxMessagesPerSession  int             // Maximum messages per session
-	maxSessionSizeBytes    int             // Maximum memory per session in bytes
+	apiKeys                map[string]string // API keys for authentication (key -> role)
+	dailyCallLimit         int               // Daily call limit per API key
+	maxSessions            int               // Maximum number of concurrent sessions
+	maxMessagesPerSession  int               // Maximum messages per session
+	maxSessionSizeBytes    int               // Maximum memory per session in bytes
 }
 
 // SpendingTracker tracks daily usage per API key
@@ -191,15 +191,21 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.rateLimitBurst = burstInt
 
-	// Parse API keys (comma-separated)
+	// Parse API keys (comma-separated, with optional :admin suffix)
 	apiKeysStr := os.Getenv("API_KEYS")
-	cfg.apiKeys = make(map[string]bool)
+	cfg.apiKeys = make(map[string]string)
 	if apiKeysStr != "" {
 		keys := strings.Split(apiKeysStr, ",")
 		for _, key := range keys {
 			key = strings.TrimSpace(key)
 			if key != "" {
-				cfg.apiKeys[key] = true
+				// Check for admin role suffix
+				if strings.HasSuffix(key, ":admin") {
+					keyPart := strings.TrimSuffix(key, ":admin")
+					cfg.apiKeys[keyPart] = "admin"
+				} else {
+					cfg.apiKeys[key] = "user"
+				}
 			}
 		}
 	}
