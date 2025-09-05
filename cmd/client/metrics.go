@@ -13,11 +13,17 @@ import (
 const kibibyte = 1024
 
 type metrics struct {
-	// Running totals (cumulative across all messages)
-	payloadBytesIn  int64
-	payloadBytesOut int64
-	wireBytesIn     int64
-	wireBytesOut    int64
+	// Session totals (reset on /clear)
+	sessionPayloadBytesIn  int64
+	sessionPayloadBytesOut int64
+	sessionWireBytesIn     int64
+	sessionWireBytesOut    int64
+
+	// Lifetime totals (never reset)
+	lifetimePayloadBytesIn  int64
+	lifetimePayloadBytesOut int64
+	lifetimeWireBytesIn     int64
+	lifetimeWireBytesOut    int64
 
 	// Per-message tracking (reset after each message)
 	msgPayloadBytesIn  int64
@@ -31,8 +37,10 @@ type metrics struct {
 func (m *metrics) addPayloadBytes(out, in int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.payloadBytesOut += out
-	m.payloadBytesIn += in
+	m.sessionPayloadBytesOut += out
+	m.sessionPayloadBytesIn += in
+	m.lifetimePayloadBytesOut += out
+	m.lifetimePayloadBytesIn += in
 	m.msgPayloadBytesOut += out
 	m.msgPayloadBytesIn += in
 }
@@ -40,28 +48,48 @@ func (m *metrics) addPayloadBytes(out, in int64) {
 func (m *metrics) addWireBytes(out, in int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.wireBytesOut += out
-	m.wireBytesIn += in
+	m.sessionWireBytesOut += out
+	m.sessionWireBytesIn += in
+	m.lifetimeWireBytesOut += out
+	m.lifetimeWireBytesIn += in
 	m.msgWireBytesOut += out
 	m.msgWireBytesIn += in
 }
 
-func (m *metrics) getPayloadTotals() (int64, int64) {
+func (m *metrics) getSessionPayloadTotals() (int64, int64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.payloadBytesOut, m.payloadBytesIn
+	return m.sessionPayloadBytesOut, m.sessionPayloadBytesIn
 }
 
-func (m *metrics) getWireTotals() (int64, int64) {
+func (m *metrics) getLifetimePayloadTotals() (int64, int64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.wireBytesOut, m.wireBytesIn
+	return m.lifetimePayloadBytesOut, m.lifetimePayloadBytesIn
 }
 
-func (m *metrics) getAllTotals() (int64, int64, int64, int64) {
+func (m *metrics) getSessionWireTotals() (int64, int64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.payloadBytesOut, m.payloadBytesIn, m.wireBytesOut, m.wireBytesIn
+	return m.sessionWireBytesOut, m.sessionWireBytesIn
+}
+
+func (m *metrics) getLifetimeWireTotals() (int64, int64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lifetimeWireBytesOut, m.lifetimeWireBytesIn
+}
+
+func (m *metrics) getSessionTotals() (int64, int64, int64, int64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.sessionPayloadBytesOut, m.sessionPayloadBytesIn, m.sessionWireBytesOut, m.sessionWireBytesIn
+}
+
+func (m *metrics) getLifetimeTotals() (int64, int64, int64, int64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lifetimePayloadBytesOut, m.lifetimePayloadBytesIn, m.lifetimeWireBytesOut, m.lifetimeWireBytesIn
 }
 
 func (m *metrics) getMessageTotalsAndReset() (int64, int64, int64, int64) {
@@ -81,6 +109,19 @@ func (m *metrics) getMessageTotalsAndReset() (int64, int64, int64, int64) {
 	m.msgWireBytesIn = 0
 
 	return msgPayloadOut, msgPayloadIn, msgWireOut, msgWireIn
+}
+
+func (m *metrics) resetSessionMetrics() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sessionPayloadBytesOut = 0
+	m.sessionPayloadBytesIn = 0
+	m.sessionWireBytesOut = 0
+	m.sessionWireBytesIn = 0
+	m.msgPayloadBytesOut = 0
+	m.msgPayloadBytesIn = 0
+	m.msgWireBytesOut = 0
+	m.msgWireBytesIn = 0
 }
 
 func formatBytes(bytes int64) string {

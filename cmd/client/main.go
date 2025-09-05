@@ -29,7 +29,10 @@ import (
 	pb "microchat.ai/proto"
 )
 
-const quitCommand = "/quit"
+const (
+	quitCommand  = "/quit"
+	clearCommand = "/clear"
+)
 
 type config struct {
 	serverAddr    string
@@ -38,6 +41,7 @@ type config struct {
 	sessionID     string // Server-generated UUID session ID
 	metrics       bool   // Show compact session metrics
 	metricsDetail bool   // Show detailed metrics
+	metricsTotal  bool   // Show lifetime metrics alongside session
 	apiKey        string // API key for authentication
 }
 
@@ -75,6 +79,7 @@ func main() {
 	flag.StringVar(&cfg.modelString, "model", "gemini", "LLM model to use (echo, gemini)")
 	flag.BoolVar(&cfg.metrics, "metrics", false, "show compact session metrics")
 	flag.BoolVar(&cfg.metricsDetail, "metrics-detail", false, "show detailed message and session metrics")
+	flag.BoolVar(&cfg.metricsTotal, "metrics-total", false, "show lifetime metrics alongside session")
 	flag.Parse()
 
 	// Get API key from environment
@@ -267,6 +272,21 @@ func (app *application) startSession() error {
 	return nil
 }
 
+func (app *application) resetSession() error {
+	ctx := app.addAuthContext(context.Background())
+	req := &pb.StartSessionRequest{}
+
+	resp, err := app.grpc.StartSession(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	app.config.sessionID = resp.SessionId
+	app.messageIndex = 0
+	app.metrics.resetSessionMetrics()
+	return nil
+}
+
 func (app *application) startChat() {
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -281,7 +301,7 @@ func (app *application) startChat() {
 
 	app.logger.Info("starting interactive chat - type 'quit' to exit")
 	fmt.Println("microchat.ai client - type your message and press Enter")
-	fmt.Printf("Commands: '%s' to exit, Ctrl+C to quit\n", quitCommand)
+	fmt.Printf("Commands: '%s' to clear, '%s' to exit, Ctrl+C to quit\n", clearCommand, quitCommand)
 	fmt.Println("[Starting session - 0 B sent, 0 B received]")
 	fmt.Print("> ")
 
@@ -297,6 +317,20 @@ func (app *application) startChat() {
 		if input == quitCommand {
 			app.logger.Info("goodbye!")
 			break
+		}
+
+		if input == clearCommand {
+			fmt.Print("\033[H\033[2J") // Clear terminal
+			if err := app.resetSession(); err != nil {
+				app.logger.Error("failed to reset session", "error", err)
+				fmt.Printf("Error: Failed to clear session. Please try again.\n")
+			} else {
+				fmt.Println("microchat.ai client - Session cleared")
+				fmt.Printf("Commands: '%s' to clear, '%s' to exit\n", clearCommand, quitCommand)
+				app.displayMetrics()
+			}
+			fmt.Print("> ")
+			continue
 		}
 
 		if err := app.sendMessage(input); err != nil {
@@ -352,29 +386,42 @@ func (app *application) sendMessage(message string) error {
 }
 
 func (app *application) displayMetrics() {
-	if !app.config.metrics && !app.config.metricsDetail {
+	if !app.config.metrics && !app.config.metricsDetail && !app.config.metricsTotal {
 		return // No metrics to display
 	}
 
 	if app.config.metricsDetail {
-		// NOTE: Wire bytes can be less than payload bytes due to gzip compression.
-		// Payload = uncompressed protobuf size, Wire = compressed data + gRPC protocol overhead.
 		// Show detailed metrics with arrow format
 		msgPayloadOut, msgPayloadIn, msgWireOut, msgWireIn := app.metrics.getMessageTotalsAndReset()
-		totalPayloadOut, totalPayloadIn, totalWireOut, totalWireIn := app.metrics.getAllTotals()
+		sessionPayloadOut, sessionPayloadIn, sessionWireOut, sessionWireIn := app.metrics.getSessionTotals()
 
 		fmt.Println()
 		fmt.Printf("Message: [Payload: ↑%s ↓%s] [Wire (gzip): ↑%s ↓%s]\n",
 			formatBytes(msgPayloadOut), formatBytes(msgPayloadIn),
 			formatBytes(msgWireOut), formatBytes(msgWireIn))
 		fmt.Printf("Session: [Payload: ↑%s ↓%s] [Wire (gzip): ↑%s ↓%s]\n",
-			formatBytes(totalPayloadOut), formatBytes(totalPayloadIn),
-			formatBytes(totalWireOut), formatBytes(totalWireIn))
+			formatBytes(sessionPayloadOut), formatBytes(sessionPayloadIn),
+			formatBytes(sessionWireOut), formatBytes(sessionWireIn))
+
+		if app.config.metricsTotal {
+			lifetimePayloadOut, lifetimePayloadIn, lifetimeWireOut, lifetimeWireIn := app.metrics.getLifetimeTotals()
+			fmt.Printf("Lifetime: [Payload: ↑%s ↓%s] [Wire (gzip): ↑%s ↓%s]\n",
+				formatBytes(lifetimePayloadOut), formatBytes(lifetimePayloadIn),
+				formatBytes(lifetimeWireOut), formatBytes(lifetimeWireIn))
+		}
 		fmt.Println()
-	} else if app.config.metrics {
-		// Show compact session metrics (wire level only)
-		_, _, totalWireOut, totalWireIn := app.metrics.getAllTotals()
-		fmt.Printf("[↑%s ↓%s]\n", formatBytes(totalWireOut), formatBytes(totalWireIn))
+	} else if app.config.metrics || app.config.metricsTotal {
+		// Show compact metrics
+		_, _, sessionWireOut, sessionWireIn := app.metrics.getSessionTotals()
+
+		if app.config.metricsTotal {
+			_, _, lifetimeWireOut, lifetimeWireIn := app.metrics.getLifetimeTotals()
+			fmt.Printf("[Session: ↑%s ↓%s] [Total: ↑%s ↓%s]\n",
+				formatBytes(sessionWireOut), formatBytes(sessionWireIn),
+				formatBytes(lifetimeWireOut), formatBytes(lifetimeWireIn))
+		} else {
+			fmt.Printf("[↑%s ↓%s]\n", formatBytes(sessionWireOut), formatBytes(sessionWireIn))
+		}
 
 		// Reset message counters even though we don't display them
 		app.metrics.getMessageTotalsAndReset()

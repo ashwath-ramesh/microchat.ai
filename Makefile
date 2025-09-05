@@ -26,6 +26,8 @@ client-gemini-metrics:
 client-gemini-detail:
 	cd cmd/client && go run . -model=gemini -metrics-detail
 
+client-gemini-total:
+	cd cmd/client && go run . -model=gemini -metrics-total
 # =============================================================================
 # ADMIN TOOLS
 # =============================================================================
