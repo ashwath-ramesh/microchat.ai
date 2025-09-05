@@ -451,6 +451,362 @@ func (x *GetHistoryResponse) GetMessages() []string {
 	return nil
 }
 
+type MetricsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricsRequest) Reset() {
+	*x = MetricsRequest{}
+	mi := &file_proto_chat_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricsRequest) ProtoMessage() {}
+
+func (x *MetricsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_chat_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricsRequest.ProtoReflect.Descriptor instead.
+func (*MetricsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_chat_proto_rawDescGZIP(), []int{8}
+}
+
+type MetricsResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ActiveSessions       int32                  `protobuf:"varint,1,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`
+	TotalSessionsCreated int64                  `protobuf:"varint,2,opt,name=total_sessions_created,json=totalSessionsCreated,proto3" json:"total_sessions_created,omitempty"`
+	Sessions             []*SessionInfo         `protobuf:"bytes,3,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	ApiUsageStats        *ApiUsageStats         `protobuf:"bytes,4,opt,name=api_usage_stats,json=apiUsageStats,proto3" json:"api_usage_stats,omitempty"`
+	ServerLimits         *ServerLimits          `protobuf:"bytes,5,opt,name=server_limits,json=serverLimits,proto3" json:"server_limits,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *MetricsResponse) Reset() {
+	*x = MetricsResponse{}
+	mi := &file_proto_chat_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricsResponse) ProtoMessage() {}
+
+func (x *MetricsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_chat_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricsResponse.ProtoReflect.Descriptor instead.
+func (*MetricsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_chat_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *MetricsResponse) GetActiveSessions() int32 {
+	if x != nil {
+		return x.ActiveSessions
+	}
+	return 0
+}
+
+func (x *MetricsResponse) GetTotalSessionsCreated() int64 {
+	if x != nil {
+		return x.TotalSessionsCreated
+	}
+	return 0
+}
+
+func (x *MetricsResponse) GetSessions() []*SessionInfo {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+func (x *MetricsResponse) GetApiUsageStats() *ApiUsageStats {
+	if x != nil {
+		return x.ApiUsageStats
+	}
+	return nil
+}
+
+func (x *MetricsResponse) GetServerLimits() *ServerLimits {
+	if x != nil {
+		return x.ServerLimits
+	}
+	return nil
+}
+
+type SessionInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	MessageCount  int32                  `protobuf:"varint,2,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
+	SizeBytes     int32                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	LastActive    string                 `protobuf:"bytes,4,opt,name=last_active,json=lastActive,proto3" json:"last_active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionInfo) Reset() {
+	*x = SessionInfo{}
+	mi := &file_proto_chat_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionInfo) ProtoMessage() {}
+
+func (x *SessionInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_chat_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionInfo.ProtoReflect.Descriptor instead.
+func (*SessionInfo) Descriptor() ([]byte, []int) {
+	return file_proto_chat_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SessionInfo) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SessionInfo) GetMessageCount() int32 {
+	if x != nil {
+		return x.MessageCount
+	}
+	return 0
+}
+
+func (x *SessionInfo) GetSizeBytes() int32 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *SessionInfo) GetLastActive() string {
+	if x != nil {
+		return x.LastActive
+	}
+	return ""
+}
+
+type ApiUsageStats struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	TotalApiKeys       int32                  `protobuf:"varint,1,opt,name=total_api_keys,json=totalApiKeys,proto3" json:"total_api_keys,omitempty"`
+	TotalCallsToday    int32                  `protobuf:"varint,2,opt,name=total_calls_today,json=totalCallsToday,proto3" json:"total_calls_today,omitempty"`
+	AverageCallsPerKey int32                  `protobuf:"varint,3,opt,name=average_calls_per_key,json=averageCallsPerKey,proto3" json:"average_calls_per_key,omitempty"`
+	KeysOverLimit      int32                  `protobuf:"varint,4,opt,name=keys_over_limit,json=keysOverLimit,proto3" json:"keys_over_limit,omitempty"`
+	DailyLimit         int32                  `protobuf:"varint,5,opt,name=daily_limit,json=dailyLimit,proto3" json:"daily_limit,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ApiUsageStats) Reset() {
+	*x = ApiUsageStats{}
+	mi := &file_proto_chat_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApiUsageStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApiUsageStats) ProtoMessage() {}
+
+func (x *ApiUsageStats) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_chat_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApiUsageStats.ProtoReflect.Descriptor instead.
+func (*ApiUsageStats) Descriptor() ([]byte, []int) {
+	return file_proto_chat_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ApiUsageStats) GetTotalApiKeys() int32 {
+	if x != nil {
+		return x.TotalApiKeys
+	}
+	return 0
+}
+
+func (x *ApiUsageStats) GetTotalCallsToday() int32 {
+	if x != nil {
+		return x.TotalCallsToday
+	}
+	return 0
+}
+
+func (x *ApiUsageStats) GetAverageCallsPerKey() int32 {
+	if x != nil {
+		return x.AverageCallsPerKey
+	}
+	return 0
+}
+
+func (x *ApiUsageStats) GetKeysOverLimit() int32 {
+	if x != nil {
+		return x.KeysOverLimit
+	}
+	return 0
+}
+
+func (x *ApiUsageStats) GetDailyLimit() int32 {
+	if x != nil {
+		return x.DailyLimit
+	}
+	return 0
+}
+
+type ServerLimits struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	SessionCleanupInterval string                 `protobuf:"bytes,1,opt,name=session_cleanup_interval,json=sessionCleanupInterval,proto3" json:"session_cleanup_interval,omitempty"`
+	SessionIdleTimeout     string                 `protobuf:"bytes,2,opt,name=session_idle_timeout,json=sessionIdleTimeout,proto3" json:"session_idle_timeout,omitempty"`
+	MaxSessions            int32                  `protobuf:"varint,3,opt,name=max_sessions,json=maxSessions,proto3" json:"max_sessions,omitempty"`
+	MaxMessagesPerSession  int32                  `protobuf:"varint,4,opt,name=max_messages_per_session,json=maxMessagesPerSession,proto3" json:"max_messages_per_session,omitempty"`
+	MaxSessionSizeKb       int32                  `protobuf:"varint,5,opt,name=max_session_size_kb,json=maxSessionSizeKb,proto3" json:"max_session_size_kb,omitempty"`
+	RateLimitRps           float32                `protobuf:"fixed32,6,opt,name=rate_limit_rps,json=rateLimitRps,proto3" json:"rate_limit_rps,omitempty"`
+	RateLimitBurst         int32                  `protobuf:"varint,7,opt,name=rate_limit_burst,json=rateLimitBurst,proto3" json:"rate_limit_burst,omitempty"`
+	DailyCallLimit         int32                  `protobuf:"varint,8,opt,name=daily_call_limit,json=dailyCallLimit,proto3" json:"daily_call_limit,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *ServerLimits) Reset() {
+	*x = ServerLimits{}
+	mi := &file_proto_chat_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServerLimits) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerLimits) ProtoMessage() {}
+
+func (x *ServerLimits) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_chat_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerLimits.ProtoReflect.Descriptor instead.
+func (*ServerLimits) Descriptor() ([]byte, []int) {
+	return file_proto_chat_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ServerLimits) GetSessionCleanupInterval() string {
+	if x != nil {
+		return x.SessionCleanupInterval
+	}
+	return ""
+}
+
+func (x *ServerLimits) GetSessionIdleTimeout() string {
+	if x != nil {
+		return x.SessionIdleTimeout
+	}
+	return ""
+}
+
+func (x *ServerLimits) GetMaxSessions() int32 {
+	if x != nil {
+		return x.MaxSessions
+	}
+	return 0
+}
+
+func (x *ServerLimits) GetMaxMessagesPerSession() int32 {
+	if x != nil {
+		return x.MaxMessagesPerSession
+	}
+	return 0
+}
+
+func (x *ServerLimits) GetMaxSessionSizeKb() int32 {
+	if x != nil {
+		return x.MaxSessionSizeKb
+	}
+	return 0
+}
+
+func (x *ServerLimits) GetRateLimitRps() float32 {
+	if x != nil {
+		return x.RateLimitRps
+	}
+	return 0
+}
+
+func (x *ServerLimits) GetRateLimitBurst() int32 {
+	if x != nil {
+		return x.RateLimitBurst
+	}
+	return 0
+}
+
+func (x *ServerLimits) GetDailyCallLimit() int32 {
+	if x != nil {
+		return x.DailyCallLimit
+	}
+	return 0
+}
+
 var File_proto_chat_proto protoreflect.FileDescriptor
 
 const file_proto_chat_proto_rawDesc = "" +
@@ -480,16 +836,49 @@ const file_proto_chat_proto_rawDesc = "" +
 	"\x12GetHistoryResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1a\n" +
-	"\bmessages\x18\x02 \x03(\tR\bmessages*,\n" +
+	"\bmessages\x18\x02 \x03(\tR\bmessages\"\x10\n" +
+	"\x0eMetricsRequest\"\x95\x02\n" +
+	"\x0fMetricsResponse\x12'\n" +
+	"\x0factive_sessions\x18\x01 \x01(\x05R\x0eactiveSessions\x124\n" +
+	"\x16total_sessions_created\x18\x02 \x01(\x03R\x14totalSessionsCreated\x12-\n" +
+	"\bsessions\x18\x03 \x03(\v2\x11.chat.SessionInfoR\bsessions\x12;\n" +
+	"\x0fapi_usage_stats\x18\x04 \x01(\v2\x13.chat.ApiUsageStatsR\rapiUsageStats\x127\n" +
+	"\rserver_limits\x18\x05 \x01(\v2\x12.chat.ServerLimitsR\fserverLimits\"\x91\x01\n" +
+	"\vSessionInfo\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12#\n" +
+	"\rmessage_count\x18\x02 \x01(\x05R\fmessageCount\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x05R\tsizeBytes\x12\x1f\n" +
+	"\vlast_active\x18\x04 \x01(\tR\n" +
+	"lastActive\"\xdd\x01\n" +
+	"\rApiUsageStats\x12$\n" +
+	"\x0etotal_api_keys\x18\x01 \x01(\x05R\ftotalApiKeys\x12*\n" +
+	"\x11total_calls_today\x18\x02 \x01(\x05R\x0ftotalCallsToday\x121\n" +
+	"\x15average_calls_per_key\x18\x03 \x01(\x05R\x12averageCallsPerKey\x12&\n" +
+	"\x0fkeys_over_limit\x18\x04 \x01(\x05R\rkeysOverLimit\x12\x1f\n" +
+	"\vdaily_limit\x18\x05 \x01(\x05R\n" +
+	"dailyLimit\"\xff\x02\n" +
+	"\fServerLimits\x128\n" +
+	"\x18session_cleanup_interval\x18\x01 \x01(\tR\x16sessionCleanupInterval\x120\n" +
+	"\x14session_idle_timeout\x18\x02 \x01(\tR\x12sessionIdleTimeout\x12!\n" +
+	"\fmax_sessions\x18\x03 \x01(\x05R\vmaxSessions\x127\n" +
+	"\x18max_messages_per_session\x18\x04 \x01(\x05R\x15maxMessagesPerSession\x12-\n" +
+	"\x13max_session_size_kb\x18\x05 \x01(\x05R\x10maxSessionSizeKb\x12$\n" +
+	"\x0erate_limit_rps\x18\x06 \x01(\x02R\frateLimitRps\x12(\n" +
+	"\x10rate_limit_burst\x18\a \x01(\x05R\x0erateLimitBurst\x12(\n" +
+	"\x10daily_call_limit\x18\b \x01(\x05R\x0edailyCallLimit*,\n" +
 	"\x05Model\x12\x19\n" +
 	"\x15GEMINI_2_5_FLASH_LITE\x10\x00\x12\b\n" +
-	"\x04ECHO\x10\x012\xf9\x01\n" +
+	"\x04ECHO\x10\x012\xb4\x02\n" +
 	"\vChatService\x12E\n" +
 	"\fStartSession\x12\x19.chat.StartSessionRequest\x1a\x1a.chat.StartSessionResponse\x12-\n" +
 	"\x04Chat\x12\x11.chat.ChatRequest\x1a\x12.chat.ChatResponse\x123\n" +
 	"\x06Health\x12\x13.chat.HealthRequest\x1a\x14.chat.HealthResponse\x12?\n" +
 	"\n" +
-	"GetHistory\x12\x17.chat.GetHistoryRequest\x1a\x18.chat.GetHistoryResponseB\tZ\a./protob\x06proto3"
+	"GetHistory\x12\x17.chat.GetHistoryRequest\x1a\x18.chat.GetHistoryResponse\x129\n" +
+	"\n" +
+	"GetMetrics\x12\x14.chat.MetricsRequest\x1a\x15.chat.MetricsResponseB\tZ\a./protob\x06proto3"
 
 var (
 	file_proto_chat_proto_rawDescOnce sync.Once
@@ -504,7 +893,7 @@ func file_proto_chat_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_chat_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_proto_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_proto_chat_proto_goTypes = []any{
 	(Model)(0),                   // 0: chat.Model
 	(*StartSessionRequest)(nil),  // 1: chat.StartSessionRequest
@@ -515,22 +904,32 @@ var file_proto_chat_proto_goTypes = []any{
 	(*HealthResponse)(nil),       // 6: chat.HealthResponse
 	(*GetHistoryRequest)(nil),    // 7: chat.GetHistoryRequest
 	(*GetHistoryResponse)(nil),   // 8: chat.GetHistoryResponse
+	(*MetricsRequest)(nil),       // 9: chat.MetricsRequest
+	(*MetricsResponse)(nil),      // 10: chat.MetricsResponse
+	(*SessionInfo)(nil),          // 11: chat.SessionInfo
+	(*ApiUsageStats)(nil),        // 12: chat.ApiUsageStats
+	(*ServerLimits)(nil),         // 13: chat.ServerLimits
 }
 var file_proto_chat_proto_depIdxs = []int32{
-	0, // 0: chat.ChatRequest.model:type_name -> chat.Model
-	1, // 1: chat.ChatService.StartSession:input_type -> chat.StartSessionRequest
-	3, // 2: chat.ChatService.Chat:input_type -> chat.ChatRequest
-	5, // 3: chat.ChatService.Health:input_type -> chat.HealthRequest
-	7, // 4: chat.ChatService.GetHistory:input_type -> chat.GetHistoryRequest
-	2, // 5: chat.ChatService.StartSession:output_type -> chat.StartSessionResponse
-	4, // 6: chat.ChatService.Chat:output_type -> chat.ChatResponse
-	6, // 7: chat.ChatService.Health:output_type -> chat.HealthResponse
-	8, // 8: chat.ChatService.GetHistory:output_type -> chat.GetHistoryResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0,  // 0: chat.ChatRequest.model:type_name -> chat.Model
+	11, // 1: chat.MetricsResponse.sessions:type_name -> chat.SessionInfo
+	12, // 2: chat.MetricsResponse.api_usage_stats:type_name -> chat.ApiUsageStats
+	13, // 3: chat.MetricsResponse.server_limits:type_name -> chat.ServerLimits
+	1,  // 4: chat.ChatService.StartSession:input_type -> chat.StartSessionRequest
+	3,  // 5: chat.ChatService.Chat:input_type -> chat.ChatRequest
+	5,  // 6: chat.ChatService.Health:input_type -> chat.HealthRequest
+	7,  // 7: chat.ChatService.GetHistory:input_type -> chat.GetHistoryRequest
+	9,  // 8: chat.ChatService.GetMetrics:input_type -> chat.MetricsRequest
+	2,  // 9: chat.ChatService.StartSession:output_type -> chat.StartSessionResponse
+	4,  // 10: chat.ChatService.Chat:output_type -> chat.ChatResponse
+	6,  // 11: chat.ChatService.Health:output_type -> chat.HealthResponse
+	8,  // 12: chat.ChatService.GetHistory:output_type -> chat.GetHistoryResponse
+	10, // 13: chat.ChatService.GetMetrics:output_type -> chat.MetricsResponse
+	9,  // [9:14] is the sub-list for method output_type
+	4,  // [4:9] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_proto_chat_proto_init() }
@@ -544,7 +943,7 @@ func file_proto_chat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_chat_proto_rawDesc), len(file_proto_chat_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

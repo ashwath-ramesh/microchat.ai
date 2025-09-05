@@ -65,6 +65,7 @@ type SessionStore struct {
 	maxMessagesPerSession int
 	maxSessionSizeBytes   int
 	sessionOrder          []string // For LRU eviction
+	totalSessionsCreated  int64    // Track total sessions created
 }
 
 // NewSessionStore creates a new SessionStore instance
@@ -85,6 +86,7 @@ func (s *SessionStore) RegisterSession(sessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.validSessions[sessionID] = true
+	s.totalSessionsCreated++
 }
 
 // IsValidSession checks if a session ID was created via StartSession
@@ -218,6 +220,47 @@ func (s *SessionStore) GetSessionCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.sessions)
+}
+
+// GetTotalSessionsCreated returns the total number of sessions created
+func (s *SessionStore) GetTotalSessionsCreated() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.totalSessionsCreated
+}
+
+// GetAllSessionsInfo returns info about all active sessions
+func (s *SessionStore) GetAllSessionsInfo() []struct {
+	ID           string
+	MessageCount int
+	SizeBytes    int
+	LastActive   string
+} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]struct {
+		ID           string
+		MessageCount int
+		SizeBytes    int
+		LastActive   string
+	}, 0, len(s.sessions))
+
+	for sessionID, session := range s.sessions {
+		result = append(result, struct {
+			ID           string
+			MessageCount int
+			SizeBytes    int
+			LastActive   string
+		}{
+			ID:           sessionID,
+			MessageCount: len(session.Messages),
+			SizeBytes:    s.getSessionSize(session),
+			LastActive:   session.LastActive.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	return result
 }
 
 // GetMessagesAsLLMFormat returns messages in the format expected by LLM providers

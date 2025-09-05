@@ -216,9 +216,50 @@ func TestRateLimitInterceptorWithForwardedFor(t *testing.T) {
 
 // Authentication Tests
 
+func TestAuthInterceptor_AdminEndpoint(t *testing.T) {
+	// Test that admin endpoint requires admin role
+	apiKeys := map[string]string{
+		"user-key":  "user",
+		"admin-key": "admin",
+	}
+	mockTracker := &MockSpendingTracker{canMakeCall: true}
+	interceptor := AuthInterceptor(apiKeys, mockTracker)
+
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return "success", nil
+	}
+
+	// Test user key accessing admin endpoint - should fail
+	md := metadata.Pairs("authorization", "Bearer user-key")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	info := &grpc.UnaryServerInfo{FullMethod: "/chat.ChatService/GetMetrics"}
+
+	_, err := interceptor(ctx, nil, info, handler)
+	if err == nil {
+		t.Fatal("Expected permission denied error for user accessing admin endpoint")
+	}
+
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("Expected PermissionDenied, got %v", status.Code(err))
+	}
+
+	// Test admin key accessing admin endpoint - should succeed
+	md = metadata.Pairs("authorization", "Bearer admin-key")
+	ctx = metadata.NewIncomingContext(context.Background(), md)
+
+	resp, err := interceptor(ctx, nil, info, handler)
+	if err != nil {
+		t.Fatalf("Expected success for admin accessing admin endpoint, got %v", err)
+	}
+
+	if resp != "success" {
+		t.Errorf("Expected success response, got %v", resp)
+	}
+}
+
 func TestAuthInterceptor_HealthEndpoint(t *testing.T) {
 	// Health endpoint should bypass all auth checks
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -239,7 +280,7 @@ func TestAuthInterceptor_HealthEndpoint(t *testing.T) {
 }
 
 func TestAuthInterceptor_MissingAuth(t *testing.T) {
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -268,7 +309,7 @@ func TestAuthInterceptor_MissingAuth(t *testing.T) {
 }
 
 func TestAuthInterceptor_MissingAuthHeader(t *testing.T) {
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -295,7 +336,7 @@ func TestAuthInterceptor_MissingAuthHeader(t *testing.T) {
 }
 
 func TestAuthInterceptor_InvalidAuthFormat(t *testing.T) {
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -322,7 +363,7 @@ func TestAuthInterceptor_InvalidAuthFormat(t *testing.T) {
 }
 
 func TestAuthInterceptor_InvalidAPIKey(t *testing.T) {
-	apiKeys := map[string]bool{"valid-key": true}
+	apiKeys := map[string]string{"valid-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -349,7 +390,7 @@ func TestAuthInterceptor_InvalidAPIKey(t *testing.T) {
 }
 
 func TestAuthInterceptor_DailyLimitExceeded(t *testing.T) {
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: false} // Over limit
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -376,7 +417,7 @@ func TestAuthInterceptor_DailyLimitExceeded(t *testing.T) {
 }
 
 func TestAuthInterceptor_Success(t *testing.T) {
-	apiKeys := map[string]bool{"test-key": true}
+	apiKeys := map[string]string{"test-key": "user"}
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 
@@ -405,7 +446,7 @@ func TestAuthInterceptor_Success(t *testing.T) {
 }
 
 func TestAuthInterceptor_NoAPIKeys(t *testing.T) {
-	apiKeys := map[string]bool{} // No keys configured
+	apiKeys := map[string]string{} // No keys configured
 	mockTracker := &MockSpendingTracker{canMakeCall: true}
 	interceptor := AuthInterceptor(apiKeys, mockTracker)
 

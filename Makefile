@@ -11,6 +11,9 @@ server:
 # CLIENTS  
 # =============================================================================
 
+client:
+	cd cmd/client && go run . -model=echo
+
 client-echo:
 	cd cmd/client && go run . -model=echo
 
@@ -24,6 +27,17 @@ client-gemini-detail:
 	cd cmd/client && go run . -model=gemini -metrics-detail
 
 # =============================================================================
+# ADMIN TOOLS
+# =============================================================================
+
+admin-metrics:
+	grpcurl -H "Authorization: Bearer admin-key-1" \
+		-insecure \
+		-d '{}' \
+		localhost:4000 \
+		chat.ChatService/GetMetrics
+
+# =============================================================================
 # TOOLS
 # =============================================================================
 
@@ -34,6 +48,9 @@ proto:
 
 test:
 	go test -v ./...
+
+test-server:
+	cd cmd/server && go test -v .
 
 build:
 	go build ./...
@@ -52,5 +69,6 @@ audit:
 # =============================================================================
 
 .PHONY: server \
-        client-echo client-gemini client-gemini-metrics client-gemini-detail \
-        proto test build audit
+        client client-echo client-gemini client-gemini-metrics client-gemini-detail \
+        admin-metrics \
+        proto test test-server build audit
