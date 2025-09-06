@@ -92,6 +92,7 @@ func RateLimitInterceptor(ipLimiter *ratelimit.IPLimiter) grpc.UnaryServerInterc
 
 		// Check rate limit using the appropriate key
 		if !ipLimiter.Allow(limitKey) {
+			incrementRateLimitExceeded()
 			return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")
 		}
 

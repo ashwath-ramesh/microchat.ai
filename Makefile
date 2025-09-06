@@ -32,12 +32,13 @@ client-gemini-total:
 # ADMIN TOOLS
 # =============================================================================
 
-admin-metrics:
-	grpcurl -H "Authorization: Bearer admin-key-1" \
-		-insecure \
-		-d '{}' \
-		localhost:4000 \
-		chat.ChatService/GetMetrics
+prometheus-metrics:
+	@if [ -z "$$ADMIN_KEY" ]; then echo "Error: Set ADMIN_KEY environment variable"; exit 1; fi
+	curl -H "Authorization: Bearer $$ADMIN_KEY" http://127.0.0.1:9090/metrics
+
+prometheus-metrics-clean:
+	@if [ -z "$$ADMIN_KEY" ]; then echo "Error: Set ADMIN_KEY environment variable"; exit 1; fi
+	curl -s -H "Authorization: Bearer $$ADMIN_KEY" http://127.0.0.1:9090/metrics | grep -E "^microchat_|^# HELP microchat_|^# TYPE microchat_"
 
 # =============================================================================
 # PROFILING
@@ -91,6 +92,6 @@ audit:
 
 .PHONY: server \
         client client-echo client-gemini client-gemini-metrics client-gemini-detail \
-        admin-metrics \
+        prometheus-metrics prometheus-metrics-clean \
         pprof-cpu pprof-heap pprof-goroutines \
         proto test test-server build audit
