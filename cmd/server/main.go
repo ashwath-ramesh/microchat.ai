@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strconv"
@@ -36,6 +39,7 @@ type config struct {
 	maxSessions            int               // Maximum number of concurrent sessions
 	maxMessagesPerSession  int               // Maximum messages per session
 	maxSessionSizeBytes    int               // Maximum memory per session in bytes
+	pprofPort              int               // Port for pprof profiling server (localhost only)
 }
 
 // SpendingTracker tracks daily usage per API key
@@ -256,7 +260,49 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.maxSessionSizeBytes = maxSizeInt * 1024 // Convert KB to bytes
 
+	// Parse pprof port (with default)
+	pprofPortStr := os.Getenv("PPROF_PORT")
+	if pprofPortStr == "" {
+		pprofPortStr = "6060" // Default to 6060
+	}
+	pprofPortInt, err := strconv.Atoi(pprofPortStr)
+	if err != nil || pprofPortInt <= 0 || pprofPortInt > 65535 {
+		logger.Error("invalid PPROF_PORT value", "value", pprofPortStr, "error", err)
+		return cfg, fmt.Errorf("invalid PPROF_PORT: %w", err)
+	}
+	cfg.pprofPort = pprofPortInt
+
 	return cfg, nil
+}
+
+// adminAuthWrapper wraps HTTP handlers with admin authentication
+func adminAuthWrapper(next http.HandlerFunc, apiKeys map[string]string) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract Bearer token from Authorization header
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+			return
+		}
+		
+		// Check Bearer token format
+		const bearerPrefix = "Bearer "
+		if !strings.HasPrefix(auth, bearerPrefix) {
+			http.Error(w, "Authorization must use Bearer token", http.StatusUnauthorized)
+			return
+		}
+		
+		// Extract and validate API key
+		apiKey := strings.TrimPrefix(auth, bearerPrefix)
+		role, exists := apiKeys[apiKey]
+		if !exists || role != "admin" {
+			http.Error(w, "Admin access required", http.StatusForbidden)
+			return
+		}
+		
+		// Admin authenticated - proceed
+		next(w, r)
+	})
 }
 
 func main() {
@@ -335,6 +381,27 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Start pprof HTTP server for profiling with admin authentication (localhost only)
+	pprofAddr := fmt.Sprintf("127.0.0.1:%d", cfg.pprofPort)
+	pprofMux := http.NewServeMux()
+	
+	// Register single pprof handler - DefaultServeMux handles all sub-routes
+	pprofMux.Handle("/debug/pprof/", adminAuthWrapper(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.DefaultServeMux.ServeHTTP(w, r)
+	}), cfg.apiKeys))
+	
+	pprofServer := &http.Server{
+		Addr:    pprofAddr,
+		Handler: pprofMux,
+	}
+	
+	go func() {
+		logger.Info("starting pprof server", "addr", pprofAddr)
+		if err := pprofServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("failed to serve pprof", "error", err)
+		}
+	}()
+
 	// Start server in goroutine
 	go func() {
 		logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
@@ -352,6 +419,13 @@ func main() {
 
 	// Stop rate limiter cleanup
 	app.ipLimiter.Stop()
+
+	// Gracefully stop the pprof server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := pprofServer.Shutdown(ctx); err != nil {
+		logger.Error("failed to shutdown pprof server", "error", err)
+	}
 
 	// Gracefully stop the gRPC server
 	s.GracefulStop()
