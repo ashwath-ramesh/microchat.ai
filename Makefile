@@ -40,6 +40,25 @@ admin-metrics:
 		chat.ChatService/GetMetrics
 
 # =============================================================================
+# PROFILING
+# =============================================================================
+
+pprof-cpu:
+	@if [ -z "$$ADMIN_KEY" ]; then echo "Error: Set ADMIN_KEY environment variable"; exit 1; fi
+	curl -H "Authorization: Bearer $$ADMIN_KEY" -o /tmp/cpu.prof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
+	go tool pprof /tmp/cpu.prof
+
+pprof-heap:
+	@if [ -z "$$ADMIN_KEY" ]; then echo "Error: Set ADMIN_KEY environment variable"; exit 1; fi
+	curl -H "Authorization: Bearer $$ADMIN_KEY" -o /tmp/heap.prof http://127.0.0.1:6060/debug/pprof/heap
+	go tool pprof /tmp/heap.prof
+
+pprof-goroutines:
+	@if [ -z "$$ADMIN_KEY" ]; then echo "Error: Set ADMIN_KEY environment variable"; exit 1; fi
+	curl -H "Authorization: Bearer $$ADMIN_KEY" -o /tmp/goroutine.prof http://127.0.0.1:6060/debug/pprof/goroutine
+	go tool pprof /tmp/goroutine.prof
+
+# =============================================================================
 # TOOLS
 # =============================================================================
 
@@ -73,4 +92,5 @@ audit:
 .PHONY: server \
         client client-echo client-gemini client-gemini-metrics client-gemini-detail \
         admin-metrics \
+        pprof-cpu pprof-heap pprof-goroutines \
         proto test test-server build audit
