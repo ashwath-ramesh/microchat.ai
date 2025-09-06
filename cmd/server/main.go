@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -40,6 +41,7 @@ type config struct {
 	maxMessagesPerSession  int               // Maximum messages per session
 	maxSessionSizeBytes    int               // Maximum memory per session in bytes
 	pprofPort              int               // Port for pprof profiling server (localhost only)
+	metricsPort            int               // Port for Prometheus metrics server (network accessible)
 }
 
 // SpendingTracker tracks daily usage per API key
@@ -272,6 +274,18 @@ func loadConfig(logger *slog.Logger) (config, error) {
 	}
 	cfg.pprofPort = pprofPortInt
 
+	// Parse metrics port (with default)
+	metricsPortStr := os.Getenv("METRICS_PORT")
+	if metricsPortStr == "" {
+		metricsPortStr = "9090" // Default to 9090 (standard Prometheus port)
+	}
+	metricsPortInt, err := strconv.Atoi(metricsPortStr)
+	if err != nil || metricsPortInt <= 0 || metricsPortInt > 65535 {
+		logger.Error("invalid METRICS_PORT value", "value", metricsPortStr, "error", err)
+		return cfg, fmt.Errorf("invalid METRICS_PORT: %w", err)
+	}
+	cfg.metricsPort = metricsPortInt
+
 	return cfg, nil
 }
 
@@ -402,6 +416,28 @@ func main() {
 		}
 	}()
 
+	// Start separate Prometheus metrics HTTP server (network accessible)
+	metricsAddr := fmt.Sprintf(":%d", cfg.metricsPort)
+	metricsMux := http.NewServeMux()
+	
+	// Register Prometheus metrics endpoint with admin authentication
+	metricsMux.Handle("/metrics", adminAuthWrapper(promhttp.Handler().ServeHTTP, cfg.apiKeys))
+	
+	metricsServer := &http.Server{
+		Addr:    metricsAddr,
+		Handler: metricsMux,
+	}
+	
+	go func() {
+		logger.Info("starting metrics server", "addr", metricsAddr)
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("failed to serve metrics", "error", err)
+		}
+	}()
+
+	// Start metrics updater
+	startMetricsUpdater(app)
+	
 	// Start server in goroutine
 	go func() {
 		logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
@@ -420,11 +456,18 @@ func main() {
 	// Stop rate limiter cleanup
 	app.ipLimiter.Stop()
 
-	// Gracefully stop the pprof server
+	// Gracefully stop both HTTP servers
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	
+	// Stop pprof server
 	if err := pprofServer.Shutdown(ctx); err != nil {
 		logger.Error("failed to shutdown pprof server", "error", err)
+	}
+	
+	// Stop metrics server
+	if err := metricsServer.Shutdown(ctx); err != nil {
+		logger.Error("failed to shutdown metrics server", "error", err)
 	}
 
 	// Gracefully stop the gRPC server

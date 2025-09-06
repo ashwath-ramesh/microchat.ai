@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -34,10 +35,19 @@ func validateMessage(message string) error {
 
 // StartSession creates a new session with server-generated UUID
 func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
+	start := time.Now()
+	defer func() {
+		recordRequestDuration("StartSession", time.Since(start).Seconds())
+	}()
+
 	sessionID := uuid.New().String()
 
 	// Register the session ID as valid
 	app.sessionStore.RegisterSession(sessionID)
+	
+	// Update metrics
+	incrementSessionsCreated()
+	updateActiveSessions(app.sessionStore.GetSessionCount())
 
 	app.logger.Info("created new session", "session_id", sessionID)
 
@@ -48,19 +58,28 @@ func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRe
 
 // Implement ChatService interface
 func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.ChatResponse, error) {
+	start := time.Now()
+	defer func() {
+		recordRequestDuration("Chat", time.Since(start).Seconds())
+	}()
+
+	recordRequestSize("Chat", len(req.Message))
 	// Validate input parameters
 	if err := validateSessionID(req.SessionId); err != nil {
+		incrementGRPCError("Chat", "InvalidArgument")
 		app.logger.Warn("invalid session ID", "session_id", req.SessionId, "error", err)
 		return nil, err
 	}
 
 	if err := validateMessage(req.Message); err != nil {
+		incrementGRPCError("Chat", "InvalidArgument")
 		app.logger.Warn("invalid message", "session_id", req.SessionId, "message_len", len(req.Message), "error", err)
 		return nil, err
 	}
 
 	// Check if session ID is valid (was created via StartSession)
 	if !app.sessionStore.IsValidSession(req.SessionId) {
+		incrementGRPCError("Chat", "NotFound")
 		app.logger.Warn("invalid session ID", "session_id", req.SessionId, "error", "session not created via StartSession")
 		return nil, status.Error(codes.NotFound, "session not found or not properly created")
 	}
@@ -98,8 +117,12 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 	messages := app.sessionStore.GetMessagesAsLLMFormat(req.SessionId)
 
 	// Generate response using LLM provider
+	llmStart := time.Now()
 	reply, err := provider.GenerateResponse(ctx, messages)
+	recordLLMCallDuration(provider.Name(), time.Since(llmStart).Seconds())
 	if err != nil {
+		incrementLLMError(provider.Name(), "api_error")
+		incrementGRPCError("Chat", "Internal")
 		app.logger.Error("LLM provider error", "error", err, "provider", provider.Name())
 		return nil, status.Errorf(codes.Internal, "LLM provider failed: %v", err)
 	}
@@ -145,71 +168,3 @@ func (app *application) GetHistory(ctx context.Context, req *pb.GetHistoryReques
 	return resp, nil
 }
 
-func (app *application) GetMetrics(ctx context.Context, req *pb.MetricsRequest) (*pb.MetricsResponse, error) {
-	app.logger.Info("received get metrics request")
-
-	// Get session metrics
-	activeSessions := int32(app.sessionStore.GetSessionCount())
-	totalSessions := app.sessionStore.GetTotalSessionsCreated()
-
-	// Get detailed session info
-	sessionsInfo := app.sessionStore.GetAllSessionsInfo()
-	pbSessions := make([]*pb.SessionInfo, len(sessionsInfo))
-	for i, info := range sessionsInfo {
-		pbSessions[i] = &pb.SessionInfo{
-			SessionId:    info.ID,
-			MessageCount: int32(info.MessageCount),
-			SizeBytes:    int32(info.SizeBytes),
-			LastActive:   info.LastActive,
-		}
-	}
-
-	// Get aggregated API usage stats
-	app.spendingTracker.mu.RLock()
-	totalApiKeys := int32(len(app.config.apiKeys))
-	totalCallsToday := int32(0)
-	keysOverLimit := int32(0)
-
-	for _, usage := range app.spendingTracker.usage {
-		totalCallsToday += int32(usage.calls)
-		if usage.calls >= app.spendingTracker.limit {
-			keysOverLimit++
-		}
-	}
-
-	var averageCallsPerKey int32 = 0
-	if totalApiKeys > 0 {
-		averageCallsPerKey = totalCallsToday / totalApiKeys
-	}
-
-	apiUsageStats := &pb.ApiUsageStats{
-		TotalApiKeys:       totalApiKeys,
-		TotalCallsToday:    totalCallsToday,
-		AverageCallsPerKey: averageCallsPerKey,
-		KeysOverLimit:      keysOverLimit,
-		DailyLimit:         int32(app.spendingTracker.limit),
-	}
-	app.spendingTracker.mu.RUnlock()
-
-	// Get server configuration limits
-	serverLimits := &pb.ServerLimits{
-		SessionCleanupInterval: app.config.sessionCleanupInterval.String(),
-		SessionIdleTimeout:     app.config.sessionIdleTimeout.String(),
-		MaxSessions:            int32(app.config.maxSessions),
-		MaxMessagesPerSession:  int32(app.config.maxMessagesPerSession),
-		MaxSessionSizeKb:       int32(app.config.maxSessionSizeBytes / 1024),
-		RateLimitRps:           float32(app.config.rateLimitRPS),
-		RateLimitBurst:         int32(app.config.rateLimitBurst),
-		DailyCallLimit:         int32(app.config.dailyCallLimit),
-	}
-
-	resp := &pb.MetricsResponse{
-		ActiveSessions:       activeSessions,
-		TotalSessionsCreated: totalSessions,
-		Sessions:             pbSessions,
-		ApiUsageStats:        apiUsageStats,
-		ServerLimits:         serverLimits,
-	}
-
-	return resp, nil
-}
