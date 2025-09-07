@@ -60,23 +60,7 @@ export MICROCHAT_API_KEY=your_api_key
 
 The client automatically detects production domains and uses system certs.
 
-## Server Setup  
-
-**Deploy production server:**
-
-```bash
-# Get Gemini API key: https://ai.google.dev/gemini-api/docs/api-key
-# Build server binary
-go build -o server cmd/server/*.go
-
-# Configure environment (.env file)
-# See .env.example 
-
-# Run server
-./server
-```
-
-## Deployment
+## Server Setup
 
 **VPS Setup Checklist:**
 
@@ -91,6 +75,10 @@ go build -o server cmd/server/*.go
   ```bash
   sudo git clone https://github.com/ashwath-ramesh/microchat.ai.git /opt/microchat
   cd /opt/microchat
+  ```
+- [ ] Build server binary:
+  ```bash
+  sudo go build -o server cmd/server/*.go
   ```
 - [ ] Create service user: `sudo useradd -r -s /bin/bash -d /opt/microchat microchat`
 - [ ] Set ownership: `sudo chown -R microchat:microchat /opt/microchat`
@@ -120,8 +108,15 @@ go build -o server cmd/server/*.go
   sudo cp deploy/Caddyfile /etc/caddy/
   sudo mkdir -p /var/log/caddy
   sudo chown caddy:caddy /var/log/caddy
+  
+  # Validate and format Caddyfile
+  caddy validate --config /etc/caddy/Caddyfile
+  caddy fmt --overwrite /etc/caddy/Caddyfile
+  
+  # Start Caddy service
   sudo systemctl enable caddy
-  sudo systemctl start caddy
+  sudo systemctl restart caddy
+  sudo systemctl status caddy
   ```
 
 **Deploy updates:**
