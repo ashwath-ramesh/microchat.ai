@@ -194,16 +194,16 @@ func benchmarkMultipleSessionsWrite(b *testing.B, messageSize string) {
 	}
 
 	b.ResetTimer()
-	
+
 	b.RunParallel(func(pb *testing.PB) {
 		sessionIdx := 0
 		messageCount := 0
 		maxMessages := 10 // Keep sessions small to avoid size limits
-		
+
 		for pb.Next() {
 			currentSessionIdx := sessionIdx % numSessions
 			currentSession := sessions[currentSessionIdx]
-			
+
 			// Create new session if approaching limit
 			if messageCount >= maxMessages {
 				if newSessionID, err := createSession(app); err == nil {
@@ -212,7 +212,7 @@ func benchmarkMultipleSessionsWrite(b *testing.B, messageSize string) {
 				}
 				messageCount = 0
 			}
-			
+
 			msg := generateRealisticMessage(messageSize, messageCount)
 			store.AppendMessage(currentSession, User, msg)
 			messageCount++
@@ -367,4 +367,3 @@ func benchmarkCleanupIdleSessions(b *testing.B, messageSize string) {
 		store.CleanupIdleSessions()
 	}
 }
-

@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,6 +37,55 @@ func validateMessage(message string) error {
 	return nil
 }
 
+// sanitizeForTerminal removes potentially dangerous control characters
+// that could manipulate terminal display or execute commands
+func sanitizeForTerminal(text string) string {
+	// Remove ANSI escape sequences (could manipulate terminal)
+	ansiEscapeRegex := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	text = ansiEscapeRegex.ReplaceAllString(text, "")
+
+	// Remove other control characters except safe ones (newline, tab, carriage return)
+	var result strings.Builder
+	for _, r := range text {
+		// Allow printable characters, newlines, tabs, and carriage returns
+		if r >= 32 || r == '\n' || r == '\t' || r == '\r' {
+			result.WriteRune(r)
+		}
+		// Skip other control characters (0-31, 127)
+	}
+
+	return result.String()
+}
+
+// validateResponse checks if LLM response is safe and reasonable
+func validateResponse(response string, sessionID string, logger interface {
+	Warn(msg string, args ...interface{})
+}) error {
+	// Configure max response size (default: 50KB)
+	maxResponseSize := 50 * 1024 // 50KB default
+	if maxSizeEnv := os.Getenv("MAX_RESPONSE_SIZE_KB"); maxSizeEnv != "" {
+		if parsed, err := strconv.Atoi(maxSizeEnv); err == nil && parsed > 0 && parsed <= 1024 {
+			maxResponseSize = parsed * 1024 // Convert KB to bytes
+		}
+	}
+
+	// Check response size
+	if len(response) > maxResponseSize {
+		logger.Warn("response too large, truncating", "session_id", sessionID,
+			"original_size", len(response), "max_size", maxResponseSize)
+		return status.Errorf(codes.ResourceExhausted, "response too large: %d bytes (max %d)",
+			len(response), maxResponseSize)
+	}
+
+	// Log warning for suspiciously large responses (>20% of max size)
+	warningThreshold := maxResponseSize / 5 // 20% of max size
+	if len(response) > warningThreshold {
+		logger.Warn("large response detected", "session_id", sessionID, "size", len(response), "max_size", maxResponseSize)
+	}
+
+	return nil
+}
+
 // StartSession creates a new session with server-generated UUID
 func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRequest) (*pb.StartSessionResponse, error) {
 	start := time.Now()
@@ -44,7 +97,7 @@ func (app *application) StartSession(ctx context.Context, req *pb.StartSessionRe
 
 	// Register the session ID as valid
 	app.sessionStore.RegisterSession(sessionID)
-	
+
 	// Update metrics
 	incrementSessionsCreated()
 	updateActiveSessions(app.sessionStore.GetSessionCount())
@@ -127,7 +180,21 @@ func (app *application) Chat(ctx context.Context, req *pb.ChatRequest) (*pb.Chat
 		return nil, status.Errorf(codes.Internal, "LLM provider failed: %v", err)
 	}
 
-	// Store LLM response in session (Layer 2: structured format)
+	// Validate response size and content
+	if err := validateResponse(reply, req.SessionId, app.logger); err != nil {
+		incrementGRPCError("Chat", "ResourceExhausted")
+		return nil, err
+	}
+
+	// Sanitize response for terminal safety
+	sanitizedReply := sanitizeForTerminal(reply)
+	if len(sanitizedReply) != len(reply) {
+		app.logger.Warn("sanitized response contained control characters",
+			"session_id", req.SessionId, "original_len", len(reply), "sanitized_len", len(sanitizedReply))
+	}
+	reply = sanitizedReply
+
+	// Store sanitized LLM response in session (Layer 2: structured format)
 	if err := app.sessionStore.AppendMessage(req.SessionId, Assistant, reply); err != nil {
 		app.logger.Warn("failed to append assistant message", "session_id", req.SessionId, "error", err)
 		return nil, status.Errorf(codes.ResourceExhausted, "failed to store response: %v", err)
@@ -167,4 +234,3 @@ func (app *application) GetHistory(ctx context.Context, req *pb.GetHistoryReques
 
 	return resp, nil
 }
-

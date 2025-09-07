@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"time"
 
 	"google.golang.org/genai"
@@ -70,6 +71,39 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, messages []Messag
 		model = "gemini-2.5-flash-lite" // default
 	}
 
+	// Configure safety settings for content filtering
+	safetySettings := []*genai.SafetySetting{
+		{
+			Category:  genai.HarmCategoryHarassment,
+			Threshold: genai.HarmBlockThresholdBlockMediumAndAbove,
+		},
+		{
+			Category:  genai.HarmCategoryHateSpeech,
+			Threshold: genai.HarmBlockThresholdBlockMediumAndAbove,
+		},
+		{
+			Category:  genai.HarmCategorySexuallyExplicit,
+			Threshold: genai.HarmBlockThresholdBlockMediumAndAbove,
+		},
+		{
+			Category:  genai.HarmCategoryDangerousContent,
+			Threshold: genai.HarmBlockThresholdBlockMediumAndAbove,
+		},
+	}
+
+	// Configure max output tokens (default: 2048 tokens ≈ 1500 words)
+	maxTokens := int32(2048)
+	if maxTokensEnv := os.Getenv("GEMINI_MAX_OUTPUT_TOKENS"); maxTokensEnv != "" {
+		if parsed, err := strconv.Atoi(maxTokensEnv); err == nil && parsed > 0 && parsed <= 8192 {
+			maxTokens = int32(parsed)
+		}
+	}
+
+	generateConfig := &genai.GenerateContentConfig{
+		SafetySettings:  safetySettings,
+		MaxOutputTokens: maxTokens,
+	}
+
 	// Convert our messages to Gemini format
 	var parts []*genai.Part
 	for _, msg := range messages {
@@ -102,8 +136,8 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, messages []Messag
 		// Create timeout context (30 seconds)
 		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
-		// Generate content using Gemini
-		result, err := g.client.Models().GenerateContent(timeoutCtx, model, content, nil)
+		// Generate content using Gemini with safety settings and token limits
+		result, err := g.client.Models().GenerateContent(timeoutCtx, model, content, generateConfig)
 		cancel() // Always cancel the timeout context
 
 		if err != nil {

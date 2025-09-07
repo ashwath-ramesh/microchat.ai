@@ -12,8 +12,8 @@ import (
 var (
 	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "microchat_request_duration_seconds",
-			Help: "Duration of gRPC requests in seconds",
+			Name:    "microchat_request_duration_seconds",
+			Help:    "Duration of gRPC requests in seconds",
 			Buckets: []float64{0.001, 0.01, 0.1, 0.5, 1.0, 2.5, 5.0, 10.0},
 		},
 		[]string{"method"},
@@ -21,8 +21,8 @@ var (
 
 	llmCallDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "microchat_llm_call_duration_seconds", 
-			Help: "Duration of LLM provider calls in seconds",
+			Name:    "microchat_llm_call_duration_seconds",
+			Help:    "Duration of LLM provider calls in seconds",
 			Buckets: []float64{0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0},
 		},
 		[]string{"provider"},
@@ -51,8 +51,8 @@ var (
 
 	requestBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "microchat_request_bytes",
-			Help: "Size of request payloads in bytes",
+			Name:    "microchat_request_bytes",
+			Help:    "Size of request payloads in bytes",
 			Buckets: []float64{100, 500, 1000, 5000, 10000, 50000},
 		},
 		[]string{"method"},
@@ -122,7 +122,7 @@ var (
 		},
 		[]string{"max_sessions", "max_messages_per_session", "max_session_size_kb", "rate_limit_rps", "rate_limit_burst"},
 	)
-	
+
 	serverStartTime = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "microchat_server_start_time_seconds",
@@ -160,7 +160,7 @@ func updateAPIKeyMetrics(totalKeys int, usage map[string]int, limit int, keysOve
 	apiKeysTotal.Set(float64(totalKeys))
 	dailyCallLimit.Set(float64(limit))
 	apiKeysOverLimit.Set(float64(keysOverLimit))
-	
+
 	// Update per-key usage (using hash of key for privacy)
 	for keyHash, calls := range usage {
 		apiCallsToday.WithLabelValues(keyHash).Set(float64(calls))
@@ -192,13 +192,13 @@ func hashAPIKey(key string) string {
 func updateBusinessMetrics(app *application) {
 	// Update session metrics
 	updateActiveSessions(app.sessionStore.GetSessionCount())
-	
+
 	// Update API key metrics
 	app.spendingTracker.mu.RLock()
 	totalKeys := len(app.config.apiKeys)
 	keysOverLimit := 0
 	usage := make(map[string]int)
-	
+
 	for key, usageData := range app.spendingTracker.usage {
 		keyHash := hashAPIKey(key)
 		usage[keyHash] = usageData.calls
@@ -207,9 +207,9 @@ func updateBusinessMetrics(app *application) {
 		}
 	}
 	app.spendingTracker.mu.RUnlock()
-	
+
 	updateAPIKeyMetrics(totalKeys, usage, app.spendingTracker.limit, keysOverLimit)
-	
+
 	// Update session memory metrics (aggregate only - no per-session tracking)
 	sessionsInfo := app.sessionStore.GetAllSessionsInfo()
 	totalMemory := 0
@@ -223,7 +223,7 @@ func updateBusinessMetrics(app *application) {
 func initializeServerMetrics(cfg config) {
 	// Set server start time
 	serverStartTime.Set(float64(time.Now().Unix()))
-	
+
 	// Set server configuration as labels
 	serverConfigInfo.WithLabelValues(
 		fmt.Sprintf("%d", cfg.maxSessions),
@@ -238,11 +238,11 @@ func initializeServerMetrics(cfg config) {
 func startMetricsUpdater(app *application) {
 	// Initialize configuration metrics once
 	initializeServerMetrics(app.config)
-	
+
 	go func() {
 		ticker := time.NewTicker(30 * time.Second) // Update every 30 seconds
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
