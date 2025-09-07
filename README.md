@@ -2,17 +2,17 @@
 
 **Bandwidth compressed chats with a SOTA LLM over the wire.**
 
-I am frequently on a plane with a 30MB in-flight Wi-Fi plan, and I want to 
+I am frequently on a plane with a 30MB in-flight Wi-Fi plan, and I want to
 have a conversation with a SOTA LLM like Claude or Gemini.
 
-The problem is that standard chat clients burn through data. Their requests 
-are verbose and the text isn't compressed, so my 30MB data cap disappears 
+The problem is that standard chat clients burn through data. Their requests
+are verbose and the text isn't compressed, so my 30MB data cap disappears
 in minutes.
 
 So how can I have a long, useful conversation with a SOTA LLM without
 running out of data?
 
-I built `microchat.ai`, a system that uses a compression proxy to solve 
+I built `microchat.ai`, a system that uses a compression proxy to solve
 this problem. It works using two parts:
 
 1. **A terminal client (`cmd/client/`):** A CLI application that:
@@ -27,7 +27,7 @@ this problem. It works using two parts:
    - Compresses the LLM response before sending back
    - Maintains ephemeral sessions without logging
 
-This architecture strips out protocol overhead and focuses on transferring 
+This architecture strips out protocol overhead and focuses on transferring
 only essential, compressed data, letting you chat for hours, not minutes.
 
 ## Privacy & Data Handling
@@ -70,14 +70,63 @@ The client automatically detects production domains and uses system certs.
 go build -o server cmd/server/*.go
 
 # Configure environment (.env file)
-API_KEYS=key1,key2,key3
-DAILY_CALL_LIMIT=100  
-GEMINI_API_KEY=your_gemini_key_here
+# See .env.example 
 
 # Run server
 ./server
 ```
 
-## Development
+## Deployment
 
-For local development with self-signed certs, see `.env.example` for config.
+**VPS Setup Checklist:**
+
+**Prerequisites:**
+
+- [ ] Install Go
+- [ ] Install Caddy
+
+**Setup:**
+
+- [ ] Clone repo:
+  ```bash
+  sudo git clone https://github.com/ashwath-ramesh/microchat.ai.git /opt/microchat
+  cd /opt/microchat
+  ```
+- [ ] Create service user: `sudo useradd -r -s /bin/bash -d /opt/microchat microchat`
+- [ ] Set ownership: `sudo chown -R microchat:microchat /opt/microchat`
+- [ ] Generate certs as microchat user:
+  ```bash
+  sudo -u microchat ./certs/generate-certs.sh
+  ```
+  *(ECDSA P-384 certificates for internal TLS. Caddy handles public SSL automatically)*
+- [ ] Configure environment:
+  ```bash
+  sudo cp .env.example .env
+  sudo vim .env  # Set API_KEYS, GEMINI_API_KEY, PORT=4000
+  sudo chown microchat:microchat .env
+  ```
+- [ ] Configure sudoers for service restart:
+  ```bash
+  echo "microchat ALL=(ALL) NOPASSWD: /bin/systemctl restart microchat" | sudo tee /etc/sudoers.d/microchat
+  ```
+- [ ] Install service:
+  ```bash
+  sudo cp deploy/microchat.service /etc/systemd/system/
+  sudo systemctl enable microchat
+  sudo systemctl start microchat
+  ```
+- [ ] Setup Caddy with security hardening:
+  ```bash
+  sudo cp deploy/Caddyfile /etc/caddy/
+  sudo mkdir -p /var/log/caddy
+  sudo chown caddy:caddy /var/log/caddy
+  sudo systemctl enable caddy
+  sudo systemctl start caddy
+  ```
+
+**Deploy updates:**
+
+```bash
+# Run as microchat user (NOT as root)
+cd /opt/microchat && sudo -u microchat ./deploy/deploy.sh
+```
