@@ -19,10 +19,10 @@ import (
 // setupBenchApp creates an application instance for benchmarking
 func setupBenchApp() (*application, *llm.MockProvider) {
 	printSystemInfo() // Show system info once per benchmark run
-	
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	mockProvider := llm.NewMockProvider("Bench-Provider")
-	
+
 	app := &application{
 		logger:       logger,
 		sessionStore: NewSessionStore(time.Hour, 10000, 100000, 100*1024*1024), // More generous limits
@@ -30,7 +30,7 @@ func setupBenchApp() (*application, *llm.MockProvider) {
 			return mockProvider
 		},
 	}
-	
+
 	return app, mockProvider
 }
 
@@ -81,28 +81,27 @@ func generateRealisticMessage(size string, index int) string {
 	}
 }
 
-
 // System info display for benchmarks
 var systemInfoOnce sync.Once
 
 func printSystemInfo() {
 	systemInfoOnce.Do(func() {
 		fmt.Println("=== System Information ===")
-		
+
 		// CPU Info
 		cpuInfo := getCPUInfo()
 		fmt.Printf("CPU: %s\n", cpuInfo)
-		
-		// Memory Info  
+
+		// Memory Info
 		memInfo := getMemoryInfo()
 		fmt.Printf("Memory: %s\n", memInfo)
-		
+
 		// OS Info
 		fmt.Printf("OS: %s %s (%s)\n", getOSName(), getOSVersion(), runtime.GOOS)
-		
+
 		// Go Info
 		fmt.Printf("Go: %s (GOMAXPROCS=%d)\n", runtime.Version(), runtime.GOMAXPROCS(0))
-		
+
 		fmt.Println("===========================")
 	})
 }
@@ -119,7 +118,7 @@ func getCPUInfo() string {
 			return info
 		}
 	}
-	
+
 	// Fallback
 	return fmt.Sprintf("Unknown CPU (%d-core, %s)", runtime.NumCPU(), runtime.GOARCH)
 }
@@ -136,7 +135,7 @@ func getMemoryInfo() string {
 			return mem
 		}
 	}
-	
+
 	// Fallback - get current memory stats
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -179,7 +178,7 @@ func getOSVersion() string {
 			}
 		}
 	}
-	
+
 	return "Unknown"
 }
 
@@ -217,11 +216,11 @@ func readProcCPUInfo() string {
 	if content == "" {
 		return ""
 	}
-	
+
 	lines := strings.Split(content, "\n")
 	var modelName string
 	var coreCount int
-	
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "model name") {
 			parts := strings.Split(line, ":")
@@ -233,11 +232,11 @@ func readProcCPUInfo() string {
 			coreCount++
 		}
 	}
-	
+
 	if modelName != "" {
 		return fmt.Sprintf("%s (%d-core, %s)", modelName, coreCount, runtime.GOARCH)
 	}
-	
+
 	return fmt.Sprintf("Unknown CPU (%d-core, %s)", runtime.NumCPU(), runtime.GOARCH)
 }
 
@@ -246,7 +245,7 @@ func readProcMemInfo() string {
 	if content == "" {
 		return ""
 	}
-	
+
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "MemTotal:") {
@@ -261,6 +260,6 @@ func readProcMemInfo() string {
 			break
 		}
 	}
-	
+
 	return "Unknown"
 }

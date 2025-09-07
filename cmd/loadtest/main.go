@@ -171,7 +171,7 @@ func (lt *LoadTester) recordSuccess(latency time.Duration) {
 
 	// Store individual latency for percentile calculation
 	lt.results.Latencies = append(lt.results.Latencies, latency)
-	
+
 	if latency < lt.results.MinLatency {
 		lt.results.MinLatency = latency
 	}
@@ -207,24 +207,24 @@ func calculatePercentile(sortedLatencies []time.Duration, percentile float64) ti
 	if len(sortedLatencies) == 0 {
 		return 0
 	}
-	
+
 	index := (percentile / 100.0) * float64(len(sortedLatencies)-1)
 	if index == float64(int(index)) {
 		return sortedLatencies[int(index)]
 	}
-	
+
 	// Interpolate between two values
 	lower := int(index)
 	upper := lower + 1
 	if upper >= len(sortedLatencies) {
 		return sortedLatencies[lower]
 	}
-	
+
 	weight := index - float64(lower)
 	lowerVal := float64(sortedLatencies[lower].Nanoseconds())
 	upperVal := float64(sortedLatencies[upper].Nanoseconds())
 	interpolated := lowerVal + weight*(upperVal-lowerVal)
-	
+
 	return time.Duration(interpolated)
 }
 
@@ -280,14 +280,14 @@ func (lt *LoadTester) PrintResults() {
 
 	if results.SuccessfulReqs > 0 {
 		fmt.Printf("\n--- Latency Distribution ---\n")
-		
+
 		// Sort latencies for percentile calculation
 		sortedLatencies := make([]time.Duration, len(results.Latencies))
 		copy(sortedLatencies, results.Latencies)
 		sort.Slice(sortedLatencies, func(i, j int) bool {
 			return sortedLatencies[i] < sortedLatencies[j]
 		})
-		
+
 		fmt.Printf("Min Latency: %v\n", results.MinLatency)
 		fmt.Printf("P50 (Median): %v\n", calculatePercentile(sortedLatencies, 50))
 		fmt.Printf("P90: %v\n", calculatePercentile(sortedLatencies, 90))
@@ -332,9 +332,9 @@ func getCACertPath() string {
 
 	// Check default locations relative to load test directory
 	defaultPaths := []string{
-		"../../certs/ca.crt",  // From cmd/loadtest/
-		"certs/ca.crt",        // From project root
-		"./ca.crt",            // Current directory
+		"../../certs/ca.crt", // From cmd/loadtest/
+		"certs/ca.crt",       // From project root
+		"./ca.crt",           // Current directory
 	}
 
 	for _, path := range defaultPaths {
@@ -412,7 +412,7 @@ func main() {
 		ConcurrentUsers: 5, // Reduced from 10 to respect rate limits
 		MessagesPerUser: 3, // Reduced from 5 to avoid overwhelming server
 		TestDuration:    30 * time.Second,
-		CACertPath:      getCACertPath(),                                          // Use CA certificate for proper TLS verification
+		CACertPath:      getCACertPath(),                                                 // Use CA certificate for proper TLS verification
 		SkipTLSVerify:   getCACertPath() == "" && os.Getenv("SKIP_TLS_VERIFY") == "true", // Only skip TLS verification if no CA cert and explicitly requested
 		APIKey:          getAPIKey(),
 	}
@@ -447,4 +447,3 @@ func main() {
 		log.Println("Some model tests failed.")
 	}
 }
-

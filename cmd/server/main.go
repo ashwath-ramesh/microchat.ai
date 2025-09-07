@@ -298,14 +298,14 @@ func adminAuthWrapper(next http.HandlerFunc, apiKeys map[string]string) http.Han
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
 		}
-		
+
 		// Check Bearer token format
 		const bearerPrefix = "Bearer "
 		if !strings.HasPrefix(auth, bearerPrefix) {
 			http.Error(w, "Authorization must use Bearer token", http.StatusUnauthorized)
 			return
 		}
-		
+
 		// Extract and validate API key
 		apiKey := strings.TrimPrefix(auth, bearerPrefix)
 		role, exists := apiKeys[apiKey]
@@ -313,7 +313,7 @@ func adminAuthWrapper(next http.HandlerFunc, apiKeys map[string]string) http.Han
 			http.Error(w, "Admin access required", http.StatusForbidden)
 			return
 		}
-		
+
 		// Admin authenticated - proceed
 		next(w, r)
 	})
@@ -398,17 +398,17 @@ func main() {
 	// Start pprof HTTP server for profiling with admin authentication (localhost only)
 	pprofAddr := fmt.Sprintf("127.0.0.1:%d", cfg.pprofPort)
 	pprofMux := http.NewServeMux()
-	
+
 	// Register single pprof handler - DefaultServeMux handles all sub-routes
 	pprofMux.Handle("/debug/pprof/", adminAuthWrapper(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, r)
 	}), cfg.apiKeys))
-	
+
 	pprofServer := &http.Server{
 		Addr:    pprofAddr,
 		Handler: pprofMux,
 	}
-	
+
 	go func() {
 		logger.Info("starting pprof server", "addr", pprofAddr)
 		if err := pprofServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -419,15 +419,15 @@ func main() {
 	// Start separate Prometheus metrics HTTP server (network accessible)
 	metricsAddr := fmt.Sprintf(":%d", cfg.metricsPort)
 	metricsMux := http.NewServeMux()
-	
+
 	// Register Prometheus metrics endpoint with admin authentication
 	metricsMux.Handle("/metrics", adminAuthWrapper(promhttp.Handler().ServeHTTP, cfg.apiKeys))
-	
+
 	metricsServer := &http.Server{
 		Addr:    metricsAddr,
 		Handler: metricsMux,
 	}
-	
+
 	go func() {
 		logger.Info("starting metrics server", "addr", metricsAddr)
 		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -437,7 +437,7 @@ func main() {
 
 	// Start metrics updater
 	startMetricsUpdater(app)
-	
+
 	// Start server in goroutine
 	go func() {
 		logger.Info("starting gRPC server", "addr", lis.Addr(), "env", cfg.env)
@@ -459,12 +459,12 @@ func main() {
 	// Gracefully stop both HTTP servers
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	// Stop pprof server
 	if err := pprofServer.Shutdown(ctx); err != nil {
 		logger.Error("failed to shutdown pprof server", "error", err)
 	}
-	
+
 	// Stop metrics server
 	if err := metricsServer.Shutdown(ctx); err != nil {
 		logger.Error("failed to shutdown metrics server", "error", err)
