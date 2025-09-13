@@ -24,7 +24,7 @@ microchat.ai {
 	}
 
 	handle @grpc {
-		reverse_proxy https://localhost:4002 {
+		reverse_proxy https://localhost:4000 {
 			transport http {
 				tls_trusted_ca_certs /opt/microchat/certs/ca.crt
 			}
