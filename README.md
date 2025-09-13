@@ -1,6 +1,6 @@
 # microchat.ai
 
-**Bandwidth compressed chats with a SOTA LLM over the wire.**
+**Low-bandwidth, quota-aware, resilient SOTA LLM access for constrained networks.**
 
 I am frequently on a plane with a 30MB in-flight Wi-Fi plan, and I want to
 have a conversation with a SOTA LLM like Claude or Gemini.
@@ -12,8 +12,15 @@ in minutes.
 So how can I have a long, useful conversation with a SOTA LLM without
 running out of data?
 
-I built `microchat.ai`, a system that uses a compression proxy to solve
-this problem. It works using two parts:
+I built `microchat.ai`, to solve this problem.
+
+My key requirements were -
+
+- 1. predictable byte-level spending constraints
+- 2. resilience on unstable wifi
+- 3. graceful behaviour when bandwidth quotas are hit
+
+It works using two parts:
 
 1. **A terminal client (`cmd/client/`):** A CLI application that:
    - Connects via gRPC to a proxy server with gzip compression
@@ -72,38 +79,51 @@ The client automatically detects production domains and uses system certs.
 **Setup:**
 
 - [ ] Clone repo:
+
   ```bash
   sudo git clone https://github.com/ashwath-ramesh/microchat.ai.git /opt/microchat
   cd /opt/microchat
   ```
+
 - [ ] Build server binary:
+
   ```bash
   sudo go build -o server cmd/server/*.go
   ```
+
 - [ ] Create service user: `sudo useradd -r -s /bin/bash -d /opt/microchat microchat`
 - [ ] Set ownership: `sudo chown -R microchat:microchat /opt/microchat`
 - [ ] Generate certs as microchat user:
+
   ```bash
   sudo -u microchat ./certs/generate-certs.sh
   ```
+
   *(ECDSA P-384 certificates for internal TLS. Caddy handles public SSL automatically)*
 - [ ] Configure environment:
+
   ```bash
   sudo cp .env.example .env
   sudo vim .env  # Set API_KEYS, GEMINI_API_KEY, PORT=4000
   sudo chown microchat:microchat .env
   ```
+
 - [ ] Configure sudoers for service restart:
+
   ```bash
   echo "microchat ALL=(ALL) NOPASSWD: /bin/systemctl restart microchat" | sudo tee /etc/sudoers.d/microchat
   ```
+
 - [ ] Install service:
+
   ```bash
   sudo cp deploy/microchat.service /etc/systemd/system/
   sudo systemctl enable microchat
   sudo systemctl start microchat
   ```
+
 - [ ] Setup Caddy with security hardening:
+
   ```bash
   sudo cp deploy/Caddyfile /etc/caddy/
   sudo mkdir -p /var/log/caddy
